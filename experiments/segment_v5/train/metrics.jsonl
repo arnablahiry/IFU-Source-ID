@@ -1,0 +1,2 @@
+{"epoch": 1, "train_loss": 0.6791065971255302, "val_loss": 0.4664511933326721, "intra_cluster_spread": 0.7011841120893817, "inter_cluster_min_sep": 4.387727731471881, "elapsed_sec": 496.76031374931335, "lr": 0.0009972609476841367}
+{"epoch": 2, "train_loss": 0.4236887761801481, "val_loss": 0.37271883594989774, "intra_cluster_spread": 0.6460264748425983, "inter_cluster_min_sep": 4.256330495784059, "elapsed_sec": 477.2543125152588, "lr": 0.0009890738003669028}

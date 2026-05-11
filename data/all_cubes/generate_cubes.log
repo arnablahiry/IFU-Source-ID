@@ -1,0 +1,22 @@
+22:48:40 | INFO  | Configuration: {
+  "n_cubes": 20000,
+  "n_gals_range": [
+    2,
+    5
+  ],
+  "grid_size": 96,
+  "channels": 64,
+  "resolution": "resolved",
+  "seed": 0,
+  "out_dir": "/mnt/home/alahiry/repos/SourceID/data/train"
+}
+22:48:40 | INFO  | Instantiating GalCubeCraft — sampling per-cube parameters
+22:48:41 | INFO  | n_gals distribution: {2: 4984, 3: 5046, 4: 4951, 5: 5019}  (total=20000)
+22:48:41 | INFO  | Sampling done in 0.9s. Generating cubes…
+18:18:19 | INFO  | Produced 20000 HDF5 files in 329378.5s (avg 16.47s / cube)
+18:18:19 | INFO  | Sample file: cube_1.h5
+18:18:19 | INFO  |   /cube shape = (64, 96, 96), dtype = float32
+18:18:19 | INFO  |   /galaxies/cubes shape = (2, 64, 96, 96)
+18:18:19 | INFO  |   n_gals = 2, n_satellites = 1
+18:18:19 | INFO  |   spatial_res = 0.977 kpc/px, spectral_res = 18.75 km/s, FOV = 93.8 kpc
+18:18:19 | INFO  | Done. Logs: /mnt/home/alahiry/repos/SourceID/data/train/generate_cubes.log

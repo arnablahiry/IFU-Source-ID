@@ -181,16 +181,17 @@ def _spawn_per_epoch_eval(args, run_dir: Path, epoch: int, log, eval_proc):
     cmd = [
         sys.executable, "-c",
         "import subprocess, sys; "
-        f"r = subprocess.run([sys.executable, 'scripts/evaluate_segment.py', "
+        f"r = subprocess.run([sys.executable, 'scripts/segmentation/evaluate_segment.py', "
         f"'--data', '{args.data}', '--run', '{run_dir}', "
         f"'--out', '{eval_out}', '--checkpoint', 'last.pt', "
         f"'--split', 'test', '--seeds', 'meanshift', "
         f"'--bandwidth', '{args.eval_bandwidth}', "
         f"'--min-cluster-flux-frac', '{args.eval_min_cluster_flux_frac}', "
         f"'--min-cluster-voxels', '{args.eval_min_cluster_voxels}', "
-        f"'--n-samples', '{args.eval_n_samples}', '--device', 'cpu']); "
+        f"'--n-samples', '{args.eval_n_samples}', "
+        f"'--max-eval-cubes', '{args.eval_max_cubes}', '--device', 'cpu']); "
         f"sys.exit(r.returncode) if r.returncode else "
-        f"subprocess.run([sys.executable, 'scripts/analyse_segment.py', "
+        f"subprocess.run([sys.executable, 'scripts/segmentation/analyse_segment.py', "
         f"'--run', '{run_dir}', '--eval-dir', '{eval_out}', '--out', '{analyse_out}'])"
     ]
     log_path = run_dir / "eval" / f"epoch_{epoch}.log"
@@ -236,6 +237,8 @@ def main():
     ap.add_argument("--eval-min-cluster-flux-frac", type=float, default=0.05)
     ap.add_argument("--eval-min-cluster-voxels", type=int, default=50)
     ap.add_argument("--eval-n-samples", type=int, default=8)
+    ap.add_argument("--eval-max-cubes", type=int, default=200,
+                    help="Cap cubes evaluated per epoch (keeps per-epoch eval fast).")
     args = ap.parse_args()
 
     run_dir = Path(args.out).resolve()

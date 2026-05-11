@@ -158,9 +158,9 @@ def add_coord_channels(cube: torch.Tensor) -> torch.Tensor:
     """
     B, _, Z, Y, X = cube.shape
     device, dtype = cube.device, cube.dtype
-    z = torch.linspace(-1.0, 1.0, Z, device=device, dtype=dtype).view(1, 1, Z, 1, 1)
-    y = torch.linspace(-1.0, 1.0, Y, device=device, dtype=dtype).view(1, 1, 1, Y, 1)
-    x = torch.linspace(-1.0, 1.0, X, device=device, dtype=dtype).view(1, 1, 1, 1, X)
+    z = torch.linspace(0.0, 1.0, Z, device=device, dtype=dtype).view(1, 1, Z, 1, 1)
+    y = torch.linspace(0.0, 1.0, Y, device=device, dtype=dtype).view(1, 1, 1, Y, 1)
+    x = torch.linspace(0.0, 1.0, X, device=device, dtype=dtype).view(1, 1, 1, 1, X)
     z_ch = z.expand(B, 1, Z, Y, X)
     y_ch = y.expand(B, 1, Z, Y, X)
     x_ch = x.expand(B, 1, Z, Y, X)

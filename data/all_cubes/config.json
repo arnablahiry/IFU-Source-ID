@@ -1,0 +1,12 @@
+{
+  "n_cubes": 20000,
+  "n_gals_range": [
+    2,
+    5
+  ],
+  "grid_size": 96,
+  "channels": 64,
+  "resolution": "resolved",
+  "seed": 0,
+  "out_dir": "/mnt/home/alahiry/repos/SourceID/data/train"
+}

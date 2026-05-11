@@ -123,6 +123,9 @@ def main():
     ap.add_argument("--min-cluster-voxels", type=int, default=50,
                     help="Drop clusters with fewer than this many voxels (likely noise).")
     ap.add_argument("--n-samples", type=int, default=8)
+    ap.add_argument("--max-eval-cubes", type=int, default=200,
+                    help="Cap the number of cubes evaluated (for fast per-epoch checks). "
+                         "Set to 0 to evaluate all.")
     ap.add_argument("--device", default=None)
     args = ap.parse_args()
 
@@ -155,6 +158,8 @@ def main():
     ds = CubeDataset(args.data)
     splits = json.loads((run_dir / "splits.json").read_text())
     eval_indices = list(splits[args.split])
+    if args.max_eval_cubes and args.max_eval_cubes > 0:
+        eval_indices = eval_indices[:args.max_eval_cubes]
     log.info("%s split: %d cubes", args.split, len(eval_indices))
 
     delta_v = float(train_cfg.get("delta_v", 0.5))

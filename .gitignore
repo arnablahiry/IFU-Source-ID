@@ -27,3 +27,5 @@ nohup.out
 # Legacy run dirs
 runs/
 wandb/
+
+*.pkl
