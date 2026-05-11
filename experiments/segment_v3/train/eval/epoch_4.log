@@ -1,0 +1,106 @@
+17:27:25 | INFO  | Train config: {
+  "data": "experiments/sep_v1/data",
+  "out": "experiments/segment_v3/train",
+  "epochs": 100,
+  "batch_size": 2,
+  "lr": 0.001,
+  "base": 32,
+  "embedding_dim": 8,
+  "threshold_frac": 0.05,
+  "coord_conv": true,
+  "augment": false,
+  "delta_v": 0.5,
+  "delta_d": 2.0,
+  "alpha": 1.0,
+  "beta": 1.0,
+  "gamma": 0.001,
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 20,
+  "seed": 0,
+  "eval_every": 1,
+  "eval_bandwidth": 1.5,
+  "eval_min_cluster_flux_frac": 0.05,
+  "eval_min_cluster_voxels": 50,
+  "eval_n_samples": 8
+}
+17:27:26 | INFO  | Device: cpu   seeds=meanshift
+17:27:27 | INFO  | test split: 200 cubes
+17:27:27 | INFO  | delta_v=0.50  delta_d=2.00  bandwidth=1.50  oracle_dt=4.00
+17:27:27 | INFO  | Loaded /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/last.pt  in_channels=4  coord_conv=True
+17:28:49 | INFO  |   20 / 200  (82.5s)
+17:30:16 | INFO  |   40 / 200  (168.9s)
+17:31:47 | INFO  |   60 / 200  (259.5s)
+17:33:19 | INFO  |   80 / 200  (351.6s)
+17:34:42 | INFO  |   100 / 200  (434.5s)
+17:35:52 | INFO  |   120 / 200  (505.0s)
+17:37:25 | INFO  |   140 / 200  (598.0s)
+17:38:49 | INFO  |   160 / 200  (681.6s)
+17:40:03 | INFO  |   180 / 200  (755.5s)
+17:41:32 | INFO  |   200 / 200  (845.3s)
+17:41:32 | INFO  | Wrote per_cube_metrics.csv and summary.json
+17:41:32 | INFO  | Summary: {
+  "matched_iou_mean": {
+    "mean": 0.3480181300451901,
+    "median": 0.32751041278243065,
+    "std": 0.16663045331225254,
+    "min": 0.09291047602891922,
+    "max": 0.8817318081855774,
+    "n": 200
+  },
+  "per_source_mse": {
+    "mean": 5.4464755308458734e-05,
+    "median": 3.0025244996068068e-05,
+    "std": 8.409487065926235e-05,
+    "min": 3.111602154604043e-06,
+    "max": 0.0006771315820515156,
+    "n": 200
+  },
+  "flux_relative_error": {
+    "mean": 1.2522121050277035,
+    "median": 0.6408599452058292,
+    "std": 1.8508115455034733,
+    "min": 0.0022725197235713,
+    "max": 10.761555989781296,
+    "n": 200
+  },
+  "diffuse_flux_fraction": {
+    "mean": 0.006711741217861207,
+    "median": 0.0,
+    "std": 0.011237469302686437,
+    "min": 0.0,
+    "max": 0.06373121832698352,
+    "n": 200
+  },
+  "n_pred": {
+    "mean": 1.585,
+    "median": 1.0,
+    "std": 0.6728855771971933,
+    "min": 1.0,
+    "max": 4.0,
+    "n": 200
+  },
+  "n_gt": {
+    "mean": 3.425,
+    "median": 3.0,
+    "std": 1.1199888392301058,
+    "min": 2.0,
+    "max": 5.0,
+    "n": 200
+  },
+  "n_cubes": 200,
+  "seeds": "meanshift",
+  "split": "test",
+  "checkpoint": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/last.pt",
+  "elapsed_sec": 845.3390429019928
+}
+17:41:34 | INFO  | Reading metrics from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/metrics.jsonl
+17:41:34 | INFO  |   4 epochs
+17:41:34 | INFO  | Reading eval from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/eval/epoch_4
+17:41:34 | INFO  |   200 eval rows
+17:41:35 | INFO  |   wrote loss_curves.png
+17:41:35 | INFO  |   wrote eval_distributions.png
+17:41:38 | INFO  |   wrote 8 sample montages
+17:41:38 | INFO  | Wrote /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/analysis/epoch_4/report.md

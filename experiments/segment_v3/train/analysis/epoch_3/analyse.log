@@ -1,0 +1,8 @@
+17:06:50 | INFO  | Reading metrics from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/metrics.jsonl
+17:06:50 | INFO  |   3 epochs
+17:06:50 | INFO  | Reading eval from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/eval/epoch_3
+17:06:50 | INFO  |   200 eval rows
+17:06:51 | INFO  |   wrote loss_curves.png
+17:06:52 | INFO  |   wrote eval_distributions.png
+17:06:55 | INFO  |   wrote 8 sample montages
+17:06:55 | INFO  | Wrote /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v3/train/analysis/epoch_3/report.md

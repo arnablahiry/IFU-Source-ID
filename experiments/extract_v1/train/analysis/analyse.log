@@ -1,0 +1,8 @@
+20:20:29 | INFO  | Reading training metrics from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/extract_v1/train/metrics.jsonl
+20:20:29 | INFO  |   20 epochs
+20:20:29 | INFO  | Reading evaluation results from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/extract_v1/train/eval
+20:20:29 | INFO  |   200 eval rows
+20:20:29 | INFO  |   wrote loss_curves.png and flux conservation panel
+20:20:30 | INFO  |   wrote eval_distributions.png
+20:20:33 | INFO  |   wrote 8 sample montages
+20:20:33 | INFO  | Wrote /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/extract_v1/train/analysis/report.md

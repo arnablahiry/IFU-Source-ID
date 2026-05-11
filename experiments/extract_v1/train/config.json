@@ -1,0 +1,17 @@
+{
+  "data": "experiments/sep_v1/data",
+  "out": "experiments/extract_v1/train",
+  "epochs": 30,
+  "batch_size": 4,
+  "lr": 0.001,
+  "base": 16,
+  "query_sigma": 2.0,
+  "center_jitter": 0.5,
+  "no_rebalance": false,
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 50,
+  "seed": 0
+}

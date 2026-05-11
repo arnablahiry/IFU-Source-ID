@@ -1,0 +1,22 @@
+02:09:40 | INFO  | Configuration: {
+  "n_cubes": 2000,
+  "n_gals_range": [
+    2,
+    5
+  ],
+  "grid_size": 96,
+  "channels": 64,
+  "resolution": "resolved",
+  "seed": 0,
+  "out_dir": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data"
+}
+02:09:40 | INFO  | Instantiating GalCubeCraft — sampling per-cube parameters
+02:09:40 | INFO  | n_gals distribution: {2: 507, 3: 507, 4: 474, 5: 512}  (total=2000)
+02:09:40 | INFO  | Sampling done in 0.1s. Generating cubes…
+16:11:42 | INFO  | Produced 2000 HDF5 files in 50521.8s (avg 25.26s / cube)
+16:11:42 | INFO  | Sample file: cube_1.h5
+16:11:42 | INFO  |   /cube shape = (64, 96, 96), dtype = float32
+16:11:42 | INFO  |   /galaxies/cubes shape = (2, 64, 96, 96)
+16:11:42 | INFO  |   n_gals = 2, n_satellites = 1
+16:11:42 | INFO  |   spatial_res = 1.061 kpc/px, spectral_res = 18.75 km/s, FOV = 101.9 kpc
+16:11:42 | INFO  | Done. Logs: /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data/generate_cubes.log

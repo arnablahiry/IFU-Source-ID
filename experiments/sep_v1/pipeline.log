@@ -1,0 +1,40 @@
+02:09:36 | INFO  | ========================================================================
+02:09:36 | INFO  | Pipeline root: /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1
+02:09:36 | INFO  | Args: {'root': 'experiments/sep_v1', 'n_cubes': 2000, 'min_gals': 2, 'max_gals': 5, 'grid_size': 96, 'channels': 64, 'resolution': 'resolved', 'gen_seed': 0, 'epochs': 30, 'batch_size': 2, 'base': 16, 'lr': 0.001, 'num_workers': 2, 'val_fraction': 0.1, 'train_seed': 0, 'device': None, 'log_every': 20, 'eval_samples': 8, 'skip_generate': False, 'skip_train': False, 'skip_eval': False, 'skip_analyse': False, 'force': False}
+02:09:36 | INFO  | [gen] generating 2000 cubes
+02:09:36 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/generate_cubes.py --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --n 2000 --min-gals 2 --max-gals 5 --grid-size 96 --channels 64 --resolution resolved --seed 0
+16:11:44 | INFO  | Completed in 50527.9s
+16:11:44 | INFO  | [train] training for 30 epochs
+16:11:44 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/train_separation.py --data /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --epochs 30 --batch-size 2 --base 16 --lr 0.001 --num-workers 2 --val-fraction 0.1 --seed 0 --log-every 20
+16:11:45 | ERROR | Command failed (exit 1) after 1.1s
+21:55:14 | INFO  | ========================================================================
+21:55:14 | INFO  | Pipeline root: /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1
+21:55:14 | INFO  | Args: {'root': 'experiments/sep_v1', 'n_cubes': 2000, 'min_gals': 2, 'max_gals': 5, 'grid_size': 96, 'channels': 64, 'resolution': 'resolved', 'gen_seed': 0, 'epochs': 30, 'batch_size': 2, 'base': 16, 'lr': 0.001, 'num_workers': 2, 'val_fraction': 0.1, 'train_seed': 0, 'device': None, 'log_every': 20, 'eval_samples': 8, 'skip_generate': False, 'skip_train': False, 'skip_eval': False, 'skip_analyse': False, 'force': False}
+21:55:14 | INFO  | [gen] outputs already present at /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data — skipping
+21:55:14 | INFO  | [train] training for 30 epochs
+21:55:14 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/train_separation.py --data /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --epochs 30 --batch-size 2 --base 16 --lr 0.001 --num-workers 2 --val-fraction 0.1 --seed 0 --log-every 20
+22:09:14 | INFO  | ========================================================================
+22:09:14 | INFO  | Pipeline root: /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1
+22:09:14 | INFO  | Args: {'root': 'experiments/sep_v1', 'n_cubes': 2000, 'min_gals': 2, 'max_gals': 5, 'grid_size': 96, 'channels': 64, 'resolution': 'resolved', 'gen_seed': 0, 'epochs': 30, 'batch_size': 2, 'base': 16, 'lr': 0.001, 'num_workers': 2, 'val_fraction': 0.1, 'train_seed': 0, 'device': None, 'log_every': 20, 'eval_samples': 8, 'skip_generate': False, 'skip_train': False, 'skip_eval': False, 'skip_analyse': False, 'force': False}
+22:09:14 | INFO  | [gen] outputs already present at /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data — skipping
+22:09:14 | INFO  | [train] training for 30 epochs
+22:09:14 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/train_separation.py --data /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --epochs 30 --batch-size 2 --base 16 --lr 0.001 --num-workers 2 --val-fraction 0.1 --seed 0 --log-every 20
+22:21:54 | INFO  | ========================================================================
+22:21:54 | INFO  | Pipeline root: /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1
+22:21:54 | INFO  | Args: {'root': 'experiments/sep_v1', 'n_cubes': 2000, 'min_gals': 2, 'max_gals': 5, 'grid_size': 96, 'channels': 64, 'resolution': 'resolved', 'gen_seed': 0, 'epochs': 30, 'batch_size': 2, 'base': 16, 'lr': 0.001, 'num_workers': 2, 'val_fraction': 0.1, 'test_fraction': 0.1, 'train_seed': 0, 'device': None, 'log_every': 20, 'eval_samples': 8, 'skip_generate': False, 'skip_train': False, 'skip_eval': False, 'skip_analyse': False, 'force': False}
+22:21:54 | INFO  | [gen] outputs already present at /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data — skipping
+22:21:54 | INFO  | [train] training for 30 epochs
+22:21:54 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/train_separation.py --data /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --epochs 30 --batch-size 2 --base 16 --lr 0.001 --num-workers 2 --val-fraction 0.1 --test-fraction 0.1 --seed 0 --log-every 20
+06:36:16 | INFO  | Completed in 29662.1s
+06:36:16 | INFO  | [eval] running inference on validation split
+06:36:16 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/evaluate.py --data /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data --run /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/eval --n-samples 8
+06:36:53 | INFO  | Completed in 36.9s
+06:36:53 | INFO  | [analyse] generating plots and report
+06:36:53 | INFO  | $ /Users/arnablahiry/miniforge3/bin/python /Users/arnablahiry/repos/GalCubeCraft-SourceID/scripts/analyse.py --run /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train --out /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/analysis
+06:36:56 | INFO  | Completed in 3.6s
+06:36:56 | INFO  | Pipeline complete in 29702.6s
+06:36:56 | INFO  | Outputs:
+06:36:56 | INFO  |   data     : /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data
+06:36:56 | INFO  |   train    : /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train
+06:36:56 | INFO  |   eval     : /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/eval
+06:36:56 | INFO  |   analysis : /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/analysis

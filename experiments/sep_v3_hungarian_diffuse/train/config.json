@@ -1,0 +1,15 @@
+{
+  "data": "experiments/sep_v1/data",
+  "out": "experiments/sep_v3_hungarian_diffuse/train",
+  "epochs": 30,
+  "batch_size": 2,
+  "lr": 0.001,
+  "base": 16,
+  "model": "hungarian_diffuse",
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 20,
+  "seed": 0
+}

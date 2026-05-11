@@ -1,0 +1,79 @@
+00:53:47 | INFO  | Train config: {
+  "data": "experiments/sep_v1/data",
+  "out": "experiments/sep_v2_hungarian/train",
+  "epochs": 30,
+  "batch_size": 2,
+  "lr": 0.001,
+  "base": 16,
+  "model": "hungarian",
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 20,
+  "seed": 0
+}
+00:53:49 | INFO  | Device: cpu
+00:53:49 | INFO  | Loading dataset from experiments/sep_v1/data
+00:53:49 | INFO  | Dataset size = 2000  max_n_gals = 5
+00:53:49 | INFO  | Using test split from splits.json (200 cubes)
+00:53:49 | INFO  | Model kind: hungarian  out_slots=5  permutation_invariant=True
+00:53:49 | INFO  | Loaded checkpoint /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v2_hungarian/train/best.pt
+00:54:11 | INFO  |   20 / 200 cubes
+00:54:28 | INFO  |   40 / 200 cubes
+00:54:45 | INFO  |   60 / 200 cubes
+00:55:01 | INFO  |   80 / 200 cubes
+00:55:17 | INFO  |   100 / 200 cubes
+00:55:36 | INFO  |   120 / 200 cubes
+00:55:53 | INFO  |   140 / 200 cubes
+00:56:11 | INFO  |   160 / 200 cubes
+00:56:28 | INFO  |   180 / 200 cubes
+00:56:45 | INFO  |   200 / 200 cubes
+00:56:45 | INFO  | Wrote per_cube_metrics.csv (200 rows) and summary.json (8 sample arrays)
+00:56:45 | INFO  | Summary: {
+  "per_slot_mse": {
+    "mean": 5.92837442567884e-07,
+    "median": 4.6587966551214777e-07,
+    "std": 3.9789696775609294e-07,
+    "min": 1.6957545767581905e-07,
+    "max": 2.523048124203342e-06,
+    "n": 200
+  },
+  "flux_relative_error": {
+    "mean": 1.034551298134029,
+    "median": 0.8187880516052246,
+    "std": 0.7220857337691888,
+    "min": 0.09928158670663834,
+    "max": 4.020364761352539,
+    "n": 200
+  },
+  "residual_energy": {
+    "mean": 9.353374918191548e-05,
+    "median": 5.351675099518616e-05,
+    "std": 0.0001402299751529363,
+    "min": 1.1580778846109752e-05,
+    "max": 0.001056020613759756,
+    "n": 200
+  },
+  "residual_fraction_of_input": {
+    "mean": 0.23797655602969492,
+    "median": 0.17687799698114287,
+    "std": 0.17781969768168665,
+    "min": 0.03999247864995296,
+    "max": 0.8349384727131768,
+    "n": 200
+  },
+  "mean_peak_distance_px": {
+    "mean": 22.99464304094697,
+    "median": 23.092140374140314,
+    "std": 8.162878226343585,
+    "min": 6.217948077832042,
+    "max": 42.62893844909397,
+    "n": 200
+  },
+  "n_cubes": 200,
+  "split": "test",
+  "checkpoint": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v2_hungarian/train/best.pt",
+  "data": "experiments/sep_v1/data",
+  "elapsed_sec": 176.0053060054779
+}

@@ -1,0 +1,7 @@
+16:08:09 | INFO  | Starting MCA Decomposition Pipeline
+16:08:09 | INFO  | Loading data from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data/cube_1006.h5
+16:08:09 | INFO  | Cube loaded. Shape: (64, 96, 96)
+16:08:09 | INFO  | Processing 64 spectral channels with Optical Flow + MCA...
+16:08:17 | INFO  | Checkpoint: Channel 50 complete.
+16:08:17 | INFO  | Decomposition complete. Saving to experiments/mca_v1/decomposed_sources.h5
+16:08:17 | INFO  | Done.

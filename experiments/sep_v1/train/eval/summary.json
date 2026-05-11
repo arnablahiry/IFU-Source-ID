@@ -1,0 +1,47 @@
+{
+  "per_slot_mse": {
+    "mean": 6.618549306125488e-07,
+    "median": 5.11197981722944e-07,
+    "std": 4.6946529049633144e-07,
+    "min": 1.840527801277858e-07,
+    "max": 3.1654910799261415e-06,
+    "n": 200
+  },
+  "flux_relative_error": {
+    "mean": 1.0727949133887886,
+    "median": 0.8727931380271912,
+    "std": 0.748436433646682,
+    "min": 0.11499118059873581,
+    "max": 3.967726707458496,
+    "n": 200
+  },
+  "residual_energy": {
+    "mean": 9.368060078486451e-05,
+    "median": 5.302447607391514e-05,
+    "std": 0.00014220343237911928,
+    "min": 1.1251149771851487e-05,
+    "max": 0.0010679838014766574,
+    "n": 200
+  },
+  "residual_fraction_of_input": {
+    "mean": 0.23770187240007423,
+    "median": 0.1716130464091563,
+    "std": 0.1800385902716244,
+    "min": 0.03764012335808902,
+    "max": 0.8531851243238688,
+    "n": 200
+  },
+  "mean_peak_distance_px": {
+    "mean": 23.458154181475926,
+    "median": 23.782965573211932,
+    "std": 8.12357174900919,
+    "min": 6.136809247747852,
+    "max": 42.76636896424658,
+    "n": 200
+  },
+  "n_cubes": 200,
+  "split": "test",
+  "checkpoint": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/best.pt",
+  "data": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data",
+  "elapsed_sec": 35.144349098205566
+}

@@ -1,0 +1,77 @@
+06:36:16 | INFO  | Train config: {
+  "data": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data",
+  "out": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train",
+  "epochs": 30,
+  "batch_size": 2,
+  "lr": 0.001,
+  "base": 16,
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 20,
+  "seed": 0
+}
+06:36:17 | INFO  | Device: mps
+06:36:17 | INFO  | Loading dataset from /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data
+06:36:18 | INFO  | Dataset size = 2000  max_n_gals = 5
+06:36:18 | INFO  | Using test split from splits.json (200 cubes)
+06:36:18 | INFO  | Loaded checkpoint /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/best.pt
+06:36:24 | INFO  |   20 / 200 cubes
+06:36:27 | INFO  |   40 / 200 cubes
+06:36:30 | INFO  |   60 / 200 cubes
+06:36:34 | INFO  |   80 / 200 cubes
+06:36:37 | INFO  |   100 / 200 cubes
+06:36:40 | INFO  |   120 / 200 cubes
+06:36:43 | INFO  |   140 / 200 cubes
+06:36:46 | INFO  |   160 / 200 cubes
+06:36:50 | INFO  |   180 / 200 cubes
+06:36:53 | INFO  |   200 / 200 cubes
+06:36:53 | INFO  | Wrote per_cube_metrics.csv (200 rows) and summary.json (8 sample arrays)
+06:36:53 | INFO  | Summary: {
+  "per_slot_mse": {
+    "mean": 6.618549306125488e-07,
+    "median": 5.11197981722944e-07,
+    "std": 4.6946529049633144e-07,
+    "min": 1.840527801277858e-07,
+    "max": 3.1654910799261415e-06,
+    "n": 200
+  },
+  "flux_relative_error": {
+    "mean": 1.0727949133887886,
+    "median": 0.8727931380271912,
+    "std": 0.748436433646682,
+    "min": 0.11499118059873581,
+    "max": 3.967726707458496,
+    "n": 200
+  },
+  "residual_energy": {
+    "mean": 9.368060078486451e-05,
+    "median": 5.302447607391514e-05,
+    "std": 0.00014220343237911928,
+    "min": 1.1251149771851487e-05,
+    "max": 0.0010679838014766574,
+    "n": 200
+  },
+  "residual_fraction_of_input": {
+    "mean": 0.23770187240007423,
+    "median": 0.1716130464091563,
+    "std": 0.1800385902716244,
+    "min": 0.03764012335808902,
+    "max": 0.8531851243238688,
+    "n": 200
+  },
+  "mean_peak_distance_px": {
+    "mean": 23.458154181475926,
+    "median": 23.782965573211932,
+    "std": 8.12357174900919,
+    "min": 6.136809247747852,
+    "max": 42.76636896424658,
+    "n": 200
+  },
+  "n_cubes": 200,
+  "split": "test",
+  "checkpoint": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/train/best.pt",
+  "data": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/sep_v1/data",
+  "elapsed_sec": 35.144349098205566
+}

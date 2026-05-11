@@ -1,0 +1,91 @@
+00:10:32 | INFO  | Train config: {
+  "data": "experiments/sep_v1/data",
+  "out": "experiments/segment_v1/train",
+  "epochs": 30,
+  "batch_size": 2,
+  "lr": 0.001,
+  "base": 16,
+  "embedding_dim": 8,
+  "threshold_frac": 0.1,
+  "delta_v": 0.5,
+  "delta_d": 1.5,
+  "alpha": 1.0,
+  "beta": 1.0,
+  "gamma": 0.001,
+  "num_workers": 2,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": null,
+  "log_every": 20,
+  "seed": 0
+}
+00:10:34 | INFO  | Device: cpu   seeds=meanshift
+00:10:35 | INFO  | test split: 200 cubes
+00:10:35 | INFO  | delta_v=0.50  delta_d=1.50  bandwidth=1.50  oracle_dt=3.00
+00:10:35 | INFO  | Loaded /Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v1/train/best.pt
+00:11:01 | INFO  |   20 / 200  (26.3s)
+00:11:22 | INFO  |   40 / 200  (47.7s)
+00:11:42 | INFO  |   60 / 200  (67.6s)
+00:12:09 | INFO  |   80 / 200  (94.8s)
+00:12:31 | INFO  |   100 / 200  (116.4s)
+00:12:52 | INFO  |   120 / 200  (137.0s)
+00:13:12 | INFO  |   140 / 200  (157.1s)
+00:13:33 | INFO  |   160 / 200  (178.2s)
+00:14:02 | INFO  |   180 / 200  (207.1s)
+00:14:29 | INFO  |   200 / 200  (234.2s)
+00:14:29 | INFO  | Wrote per_cube_metrics.csv and summary.json
+00:14:29 | INFO  | Summary: {
+  "matched_iou_mean": {
+    "mean": 0.2755410895801809,
+    "median": 0.2684051590040326,
+    "std": 0.09241179990274817,
+    "min": 0.07403408363461494,
+    "max": 0.6211202144622803,
+    "n": 200
+  },
+  "per_source_mse": {
+    "mean": 2.7590488647613633e-05,
+    "median": 1.7971105648939556e-05,
+    "std": 3.1322525942496656e-05,
+    "min": 3.084243417106336e-06,
+    "max": 0.0001825809376896359,
+    "n": 200
+  },
+  "flux_relative_error": {
+    "mean": 1.086764658088378,
+    "median": 0.5891752176276721,
+    "std": 1.6580804649563614,
+    "min": 0.0003984346050328215,
+    "max": 10.694722497069696,
+    "n": 200
+  },
+  "diffuse_flux_fraction": {
+    "mean": 0.006851241946066125,
+    "median": 0.002966577864820924,
+    "std": 0.008452961511880653,
+    "min": 0.0,
+    "max": 0.03830328269236708,
+    "n": 200
+  },
+  "n_pred": {
+    "mean": 2.77,
+    "median": 3.0,
+    "std": 1.2950289572052047,
+    "min": 1.0,
+    "max": 7.0,
+    "n": 200
+  },
+  "n_gt": {
+    "mean": 3.425,
+    "median": 3.0,
+    "std": 1.1199888392301058,
+    "min": 2.0,
+    "max": 5.0,
+    "n": 200
+  },
+  "n_cubes": 200,
+  "seeds": "meanshift",
+  "split": "test",
+  "checkpoint": "/Users/arnablahiry/repos/GalCubeCraft-SourceID/experiments/segment_v1/train/best.pt",
+  "elapsed_sec": 234.16279411315918
+}

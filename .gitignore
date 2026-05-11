@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+.pytest_cache/
+nohup.out
+
+# Model checkpoints
+*.pt
+*.ckpt
+
+# Training data cubes
+*.h5
+
+# Eval sample arrays
+*.npz
+
+# Generated plots and animations
+*.png
+*.gif
+
+# Legacy run dirs
+runs/
+wandb/

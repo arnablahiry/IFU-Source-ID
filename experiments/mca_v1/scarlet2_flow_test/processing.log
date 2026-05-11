@@ -1,0 +1,14 @@
+17:19:23 | INFO  | Loading cube: experiments/sep_v1/data/cube_1006.h5
+17:19:23 | INFO  | Cube shape: (S=64, H=96, W=96)
+17:19:23 | INFO  | Seed detection: scarlet2 wavelet+footprint-like extraction (scale=2)
+17:19:25 | INFO  | Channel 0: 1 components
+17:19:25 | INFO  | Channel 8: 1 components
+17:19:27 | INFO  | Channel 16: 5 components
+17:19:31 | INFO  | Channel 24: 6 components
+17:19:33 | INFO  | Channel 32: 5 components
+17:19:34 | INFO  | Channel 40: 6 components
+17:19:34 | INFO  | Channel 48: 2 components
+17:19:34 | INFO  | Channel 56: 1 components
+17:19:35 | INFO  | Channel 63: 1 components
+17:19:36 | INFO  | Done. Saved: experiments/mca_v1/scarlet2_flow_test/decomposed_sources.h5
+17:19:36 | INFO  | Tracks: 79
