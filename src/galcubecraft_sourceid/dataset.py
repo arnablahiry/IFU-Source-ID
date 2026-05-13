@@ -47,11 +47,14 @@ class CubeDataset(Dataset):
         n_classes: int = 2,
         normalise: str = "per_cube",
         max_n_gals: Optional[int] = None,
+        max_cubes: Optional[int] = None,
     ):
         self.root = Path(root)
-        self.items = sorted(self.root.glob("cube_*.h5"))
+        self.items = sorted(self.root.glob("cube_*.h5"), key=lambda p: int(p.stem.split("_")[1]))
         if not self.items:
             raise FileNotFoundError(f"No cube_*.h5 files found under {self.root}")
+        if max_cubes is not None:
+            self.items = self.items[:max_cubes]
         self.heatmap_sigma = heatmap_sigma
         self.n_classes = n_classes
         self.normalise = normalise

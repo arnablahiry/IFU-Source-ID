@@ -84,7 +84,10 @@ def main():
     import numpy as np
     import torch
     from torch.utils.data import random_split
-    from galcubecraft_sourceid import CubeDataset, SeparationUNet3D, MaskedSeparationUNet3D
+    from galcubecraft_sourceid import (
+        CubeDataset, SeparationUNet3D, MaskedSeparationUNet3D,
+        PositionGuidedMaskedSeparationUNet3D, TwoStageUNet3D,
+    )
 
     if args.device:
         device = args.device
@@ -121,15 +124,24 @@ def main():
         log.info("Validation split has %d cubes (replay seed=%d)", len(eval_indices), int(train_cfg["seed"]))
 
     model_kind = train_cfg.get("model", "baseline")
-    has_diffuse_slot = model_kind in ("hungarian_diffuse", "mask")
-    permutation_invariant = model_kind in ("hungarian", "hungarian_diffuse", "mask")
+    has_diffuse_slot = model_kind in ("hungarian_diffuse", "mask", "two_stage", "pos_guided")
+    permutation_invariant = model_kind in ("hungarian", "hungarian_diffuse", "mask", "two_stage", "pos_guided")
     out_slots = ds.max_n_gals + (1 if has_diffuse_slot else 0)
+    base = int(train_cfg.get("base", 16))
     log.info("Model kind: %s  out_slots=%d  permutation_invariant=%s",
              model_kind, out_slots, permutation_invariant)
     if model_kind == "mask":
-        model = MaskedSeparationUNet3D(max_n_gals=ds.max_n_gals, base=int(train_cfg["base"])).to(device)
+        model = MaskedSeparationUNet3D(max_n_gals=ds.max_n_gals, base=base).to(device)
+    elif model_kind == "pos_guided":
+        model = PositionGuidedMaskedSeparationUNet3D(
+            max_n_gals=ds.max_n_gals, base=base,
+            center_sigma=float(train_cfg.get("center_sigma", 3.0)),
+            bias_scale=float(train_cfg.get("bias_scale", 5.0)),
+        ).to(device)
+    elif model_kind == "two_stage":
+        model = TwoStageUNet3D(max_n_gals=ds.max_n_gals, base=base).to(device)
     else:
-        model = SeparationUNet3D(max_n_gals=out_slots, base=int(train_cfg["base"])).to(device)
+        model = SeparationUNet3D(max_n_gals=out_slots, base=base).to(device)
     ckpt_path = run_dir / args.checkpoint
     if not ckpt_path.exists():
         log.error("Missing checkpoint %s", ckpt_path)
@@ -152,7 +164,13 @@ def main():
             cube = item["cube"].unsqueeze(0).to(device)               # (1, 1, C, Y, X)
             target = item["galaxy_cubes"].unsqueeze(0).to(device)      # (1, M, C, Y, X)
             valid = item["galaxy_valid"].unsqueeze(0).to(device)       # (1, M)
-            pred_full = model(cube)                                     # (1, M[+1], C, Y, X)
+            if model_kind == "pos_guided":
+                centers_t = item["centers_cyx"].unsqueeze(0).to(device)  # (1, M, 3)
+                pred_full = model(cube, valid, centers_t)
+            elif model_kind in ("mask", "two_stage"):
+                pred_full = model(cube, valid)
+            else:
+                pred_full = model(cube)                                   # (1, M[+1], C, Y, X)
             pred_diffuse = pred_full[:, ds.max_n_gals:ds.max_n_gals+1] if has_diffuse_slot else None
             pred_gal = pred_full[:, :ds.max_n_gals]                     # (1, M, C, Y, X)
 

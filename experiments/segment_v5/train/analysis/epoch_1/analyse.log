@@ -1,8 +1,0 @@
-18:41:18 | INFO  | Reading metrics from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/segment_v5/train/metrics.jsonl
-18:41:18 | INFO  |   2 epochs
-18:41:18 | INFO  | Reading eval from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/segment_v5/train/eval/epoch_1
-18:41:18 | INFO  |   200 eval rows
-18:41:19 | INFO  |   wrote loss_curves.png
-18:41:19 | INFO  |   wrote eval_distributions.png
-18:41:27 | INFO  |   wrote 8 sample montages
-18:41:27 | INFO  | Wrote /mnt/home/alahiry/repos/IFU-Source-ID/experiments/segment_v5/train/analysis/epoch_1/report.md

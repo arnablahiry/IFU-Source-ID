@@ -1,0 +1,80 @@
+17:24:16 | INFO  | Train config: {
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/segment_v5/train",
+  "epochs": 30,
+  "batch_size": 40,
+  "lr": 0.001,
+  "base": 16,
+  "model": "mask",
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:1",
+  "log_every": 20,
+  "seed": 0
+}
+17:24:17 | INFO  | Device: cuda:1
+17:24:17 | INFO  | Loading dataset from data/all_cubes
+17:24:24 | INFO  | Dataset size = 20000  max_n_gals = 5
+17:24:24 | INFO  | Using test split from splits.json (1000 cubes)
+17:24:24 | INFO  | Model kind: mask  out_slots=6  permutation_invariant=True
+17:24:24 | INFO  | Loaded checkpoint /mnt/home/alahiry/repos/IFU-Source-ID/experiments/segment_v5/train/best.pt
+17:24:34 | INFO  |   100 / 1000 cubes
+17:24:43 | INFO  |   200 / 1000 cubes
+17:24:51 | INFO  |   300 / 1000 cubes
+17:25:00 | INFO  |   400 / 1000 cubes
+17:25:09 | INFO  |   500 / 1000 cubes
+17:25:17 | INFO  |   600 / 1000 cubes
+17:25:25 | INFO  |   700 / 1000 cubes
+17:25:34 | INFO  |   800 / 1000 cubes
+17:25:43 | INFO  |   900 / 1000 cubes
+17:25:51 | INFO  |   1000 / 1000 cubes
+17:25:51 | INFO  | Wrote per_cube_metrics.csv (1000 rows) and summary.json (8 sample arrays)
+17:25:51 | INFO  | Summary: {
+  "per_slot_mse": {
+    "mean": 2.896815292565691e-07,
+    "median": 2.1638761893427727e-07,
+    "std": 2.4793266404193057e-07,
+    "min": 3.57448648458103e-08,
+    "max": 2.4742259938648203e-06,
+    "n": 1000
+  },
+  "flux_relative_error": {
+    "mean": 0.04971731657080818,
+    "median": 0.040478553622961044,
+    "std": 0.035436293651650755,
+    "min": 8.004397386685014e-05,
+    "max": 0.24193507432937622,
+    "n": 1000
+  },
+  "residual_energy": {
+    "mean": 2.1451076148962243e-18,
+    "median": 1.9552557209453087e-18,
+    "std": 9.237592866199055e-19,
+    "min": 5.548831463570162e-19,
+    "max": 5.716048402542017e-18,
+    "n": 1000
+  },
+  "residual_fraction_of_input": {
+    "mean": 6.421245950976723e-15,
+    "median": 6.459375247418706e-15,
+    "std": 8.16927651884139e-16,
+    "min": 4.300858870560142e-15,
+    "max": 8.759979570241935e-15,
+    "n": 1000
+  },
+  "mean_peak_distance_px": {
+    "mean": 21.854909169219066,
+    "median": 21.368700050859864,
+    "std": 8.373667205428314,
+    "min": 2.29128784747792,
+    "max": 46.23264995188022,
+    "n": 1000
+  },
+  "n_cubes": 1000,
+  "split": "test",
+  "checkpoint": "/mnt/home/alahiry/repos/IFU-Source-ID/experiments/segment_v5/train/best.pt",
+  "data": "data/all_cubes",
+  "elapsed_sec": 86.4350163936615
+}

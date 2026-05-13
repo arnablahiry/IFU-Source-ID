@@ -1,0 +1,8 @@
+10:45:55 | INFO  | Reading training metrics from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v1/train/metrics.jsonl
+10:45:55 | INFO  |   122 epochs
+10:45:55 | INFO  | Reading evaluation results from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v1/train/eval
+10:45:55 | INFO  |   1000 eval rows
+10:45:55 | INFO  |   wrote loss_curves.png and flux conservation panel
+10:45:56 | INFO  |   wrote eval_distributions.png
+10:46:02 | INFO  |   wrote 8 sample montages
+10:46:02 | INFO  | Wrote /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v1/train/analysis/report.md

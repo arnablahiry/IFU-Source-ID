@@ -1,0 +1,34 @@
+11:28:45 | INFO  | Run directory: /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v6/train
+11:28:45 | INFO  | Config: {
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/separation_v6/train",
+  "epochs": 1000,
+  "batch_size": 40,
+  "lr": 0.001,
+  "base": 16,
+  "model": "instance",
+  "cross_weight": 0.0,
+  "fg_weight": 1.0,
+  "fg_threshold": 0.05,
+  "center_sigma": 1.5,
+  "bias_scale": 30.0,
+  "center_noise": 2.0,
+  "det_weight": 1.0,
+  "entropy_weight": 0.0,
+  "patience": 100,
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:0",
+  "log_every": 20,
+  "seed": 0
+}
+11:28:47 | INFO  | Device: cuda:0
+11:28:47 | INFO  | Scanning dataset at data/all_cubes
+11:28:49 | INFO  | Loaded 10000 cubes.  max_n_gals inferred = 5
+11:28:49 | INFO  | Split: train=8000  val=1000  test=1000
+11:28:49 | INFO  | Wrote split index lists to /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v6/train/splits.json
+11:28:49 | INFO  | Model: InstanceSegUNet3D(classes=5 galaxies + 1 bg, base=16, fg_threshold=0.05)
+11:28:49 | INFO  | Loss: instance  | 1401350 trainable params
+11:28:50 | INFO  | === epoch 1/1000  lr=1.00e-03 ===

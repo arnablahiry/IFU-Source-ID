@@ -1,0 +1,85 @@
+10:44:07 | INFO  | Train config: {
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/separation_v2/train",
+  "epochs": 1000,
+  "batch_size": 20,
+  "lr": 0.001,
+  "base": 16,
+  "model": "two_stage",
+  "cross_weight": 0.0,
+  "fg_weight": 1.0,
+  "fg_threshold": 0.05,
+  "center_sigma": 3.0,
+  "bias_scale": 5.0,
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:0",
+  "log_every": 20,
+  "seed": 0
+}
+10:44:08 | INFO  | Device: cuda:0
+10:44:08 | INFO  | Loading dataset from data/all_cubes
+10:44:12 | INFO  | Dataset size = 20000  max_n_gals = 5
+10:44:12 | INFO  | Using test split from splits.json (1000 cubes)
+10:44:12 | INFO  | Model kind: two_stage  out_slots=6  permutation_invariant=True
+10:44:12 | INFO  | Loaded checkpoint /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v2/train/best.pt
+10:44:22 | INFO  |   100 / 1000 cubes
+10:44:31 | INFO  |   200 / 1000 cubes
+10:44:40 | INFO  |   300 / 1000 cubes
+10:44:49 | INFO  |   400 / 1000 cubes
+10:44:58 | INFO  |   500 / 1000 cubes
+10:45:07 | INFO  |   600 / 1000 cubes
+10:45:17 | INFO  |   700 / 1000 cubes
+10:45:26 | INFO  |   800 / 1000 cubes
+10:45:35 | INFO  |   900 / 1000 cubes
+10:45:43 | INFO  |   1000 / 1000 cubes
+10:45:43 | INFO  | Wrote per_cube_metrics.csv (1000 rows) and summary.json (8 sample arrays)
+10:45:43 | INFO  | Summary: {
+  "per_slot_mse": {
+    "mean": 1.3860971977237569e-06,
+    "median": 1.1498854632918665e-06,
+    "std": 7.927642733090708e-07,
+    "min": 3.614905210724828e-07,
+    "max": 6.4877444856392685e-06,
+    "n": 1000
+  },
+  "flux_relative_error": {
+    "mean": 0.20048035748302936,
+    "median": 0.18262068182229996,
+    "std": 0.0883909529606765,
+    "min": 0.04748488590121269,
+    "max": 0.8499624729156494,
+    "n": 1000
+  },
+  "residual_energy": {
+    "mean": 1.4033550494827401e-18,
+    "median": 1.239108854484981e-18,
+    "std": 7.840126203349512e-19,
+    "min": 2.730508209388942e-19,
+    "max": 4.641195025339587e-18,
+    "n": 1000
+  },
+  "residual_fraction_of_input": {
+    "mean": 4.073745593811918e-15,
+    "median": 4.078600858754112e-15,
+    "std": 1.1502877023239848e-15,
+    "min": 1.983995760140023e-15,
+    "max": 6.8317106874076995e-15,
+    "n": 1000
+  },
+  "mean_peak_distance_px": {
+    "mean": 16.389928726910096,
+    "median": 16.03377257862561,
+    "std": 8.545176059998642,
+    "min": 1.0,
+    "max": 47.981663065369,
+    "n": 1000
+  },
+  "n_cubes": 1000,
+  "split": "test",
+  "checkpoint": "/mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v2/train/best.pt",
+  "data": "data/all_cubes",
+  "elapsed_sec": 90.68690347671509
+}

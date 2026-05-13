@@ -1,0 +1,21 @@
+{
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/separation_v2/train",
+  "epochs": 1000,
+  "batch_size": 20,
+  "lr": 0.001,
+  "base": 16,
+  "model": "two_stage",
+  "cross_weight": 0.0,
+  "fg_weight": 1.0,
+  "fg_threshold": 0.05,
+  "center_sigma": 3.0,
+  "bias_scale": 5.0,
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:0",
+  "log_every": 20,
+  "seed": 0
+}

@@ -189,7 +189,9 @@ def _spawn_per_epoch_eval(args, run_dir: Path, epoch: int, log, eval_proc):
         f"'--min-cluster-flux-frac', '{args.eval_min_cluster_flux_frac}', "
         f"'--min-cluster-voxels', '{args.eval_min_cluster_voxels}', "
         f"'--n-samples', '{args.eval_n_samples}', "
-        f"'--max-eval-cubes', '{args.eval_max_cubes}', '--device', 'cpu']); "
+        f"'--max-eval-cubes', '{args.eval_max_cubes}', "
+        f"'--flux-threshold', '{args.threshold_frac}', "
+        f"'--device', '{args.eval_device}']); "
         f"sys.exit(r.returncode) if r.returncode else "
         f"subprocess.run([sys.executable, 'scripts/segmentation/analyse_segment.py', "
         f"'--run', '{run_dir}', '--eval-dir', '{eval_out}', '--out', '{analyse_out}'])"
@@ -204,6 +206,8 @@ def _spawn_per_epoch_eval(args, run_dir: Path, epoch: int, log, eval_proc):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--data", required=True)
+    ap.add_argument("--n-cubes", type=int, default=None,
+                    help="Use only the first N cubes (by numeric id). Default: all.")
     ap.add_argument("--out", default="runs/segment")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch-size", type=int, default=2)
@@ -224,6 +228,10 @@ def main():
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--beta", type=float, default=1.0)
     ap.add_argument("--gamma", type=float, default=1e-3)
+    ap.add_argument("--delta-bg", type=float, default=1.0,
+                    help="Min distance background voxels must keep from source means.")
+    ap.add_argument("--zeta", type=float, default=0.5,
+                    help="Weight of the background repulsion term.")
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--val-fraction", type=float, default=0.1)
     ap.add_argument("--test-fraction", type=float, default=0.1)
@@ -233,6 +241,8 @@ def main():
     # Per-epoch eval+analyse pipeline knobs.
     ap.add_argument("--eval-every", type=int, default=1,
                     help="Run eval+analyse every N epochs. 0 disables per-epoch eval.")
+    ap.add_argument("--eval-device", type=str, default=None,
+                    help="Device for per-epoch eval subprocess. Defaults to training device.")
     ap.add_argument("--eval-bandwidth", type=float, default=1.5)
     ap.add_argument("--eval-min-cluster-flux-frac", type=float, default=0.05)
     ap.add_argument("--eval-min-cluster-voxels", type=int, default=50)
@@ -261,9 +271,11 @@ def main():
         device = "mps"
     else:
         device = "cpu"
+    if args.eval_device is None:
+        args.eval_device = device
     log.info("Device: %s", device)
 
-    ds = CubeDataset(args.data)
+    ds = CubeDataset(args.data, max_cubes=args.n_cubes)
     log.info("Loaded %d cubes  max_n_gals=%d", len(ds), ds.max_n_gals)
     n_test = max(1, int(args.test_fraction * len(ds)))
     n_val = max(1, int(args.val_fraction * len(ds)))
@@ -293,7 +305,8 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
     loss_kwargs = dict(delta_v=args.delta_v, delta_d=args.delta_d,
-                       alpha=args.alpha, beta=args.beta, gamma=args.gamma)
+                       alpha=args.alpha, beta=args.beta, gamma=args.gamma,
+                       delta_bg=args.delta_bg, zeta=args.zeta)
 
     best_val = math.inf
     eval_proc = None

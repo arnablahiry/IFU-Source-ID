@@ -1,0 +1,29 @@
+15:43:30 | INFO  | Loading cube: data/all_cubes/cube_10001.h5
+15:43:30 | INFO  | Cube: channels=64  H=96  W=96
+15:43:30 | INFO  | Stage 1: ROI detection on max map (scales=(1, 2)  k_sigma=3.0  roi_pad=10  min_area=4) ...
+15:43:32 | INFO  |   Found 4 ROIs
+15:43:32 | INFO  |   ROI 0: y=[28,93) x=[10,84)  size=65x74  max_flux=0.0400
+15:43:32 | INFO  |   ROI 1: y=[24,50) x=[30,55)  size=26x25  max_flux=0.0024
+15:43:32 | INFO  |   ROI 2: y=[22,46) x=[40,65)  size=24x25  max_flux=0.0022
+15:43:32 | INFO  |   ROI 3: y=[17,39) x=[27,49)  size=22x22  max_flux=0.0003
+15:43:33 | INFO  | Saved roi_detection.png
+15:43:33 | INFO  | Stage 2: per-channel detection + flow tracking inside each ROI ...
+15:43:33 | INFO  |   ROI 0: processing sub-cube (64, 65, 74) ...
+15:43:39 | INFO  |     112 tracks (108 roots, 4 splits)
+15:43:39 | INFO  |   ROI 1: processing sub-cube (64, 26, 25) ...
+15:43:41 | INFO  |     31 tracks (30 roots, 1 splits)
+15:43:41 | INFO  |   ROI 2: processing sub-cube (64, 24, 25) ...
+15:43:44 | INFO  |     25 tracks (25 roots, 0 splits)
+15:43:44 | INFO  |   ROI 3: processing sub-cube (64, 22, 22) ...
+15:43:46 | INFO  |     26 tracks (26 roots, 0 splits)
+15:43:46 | INFO  | All tracks: 194 total  189 roots  5 splits
+15:43:46 | INFO  | Extracting source flux cubes ...
+15:43:46 | INFO  | Output sources: 5
+15:43:47 | INFO  | Saved source_overview.png
+15:43:47 | INFO  | --- GT comparison ---
+15:43:47 | INFO  |   galaxy 0  center=(ch=48 y=48 x=48)  GT_flux=9.9883  best_src=1  pred_flux=13.2470  IoU=0.474
+15:43:47 | INFO  |   galaxy 1  center=(ch=36 y=66 x=41)  GT_flux=0.3146  best_src=2  pred_flux=8.8338  IoU=0.007
+15:43:47 | INFO  |   galaxy 2  center=(ch=23 y=23 x=67)  GT_flux=0.2197  best_src=4  pred_flux=0.9939  IoU=0.020
+15:43:47 | INFO  |   galaxy 3  center=(ch=51 y=29 x=63)  GT_flux=0.2327  best_src=0  pred_flux=47.6878  IoU=0.005
+15:43:47 | INFO  |   galaxy 4  center=(ch=26 y=69 x=67)  GT_flux=0.1240  best_src=0  pred_flux=47.6878  IoU=0.001
+15:43:47 | INFO  | Saved source_cubes.h5, rois.json, tracks.csv, summary.json → figures

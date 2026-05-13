@@ -1,0 +1,73 @@
+10:56:33 | INFO  | Run directory: /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v3/train
+10:56:33 | INFO  | Config: {
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/separation_v3/train",
+  "epochs": 1000,
+  "batch_size": 40,
+  "lr": 0.001,
+  "base": 16,
+  "model": "pos_guided",
+  "cross_weight": 0.0,
+  "fg_weight": 1.0,
+  "fg_threshold": 0.05,
+  "center_sigma": 1.5,
+  "bias_scale": 30.0,
+  "entropy_weight": 0.1,
+  "patience": 100,
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:1",
+  "log_every": 20,
+  "seed": 0
+}
+10:56:35 | INFO  | Device: cuda:1
+10:56:35 | INFO  | Scanning dataset at data/all_cubes
+10:56:37 | INFO  | Loaded 10000 cubes.  max_n_gals inferred = 5
+10:56:37 | INFO  | Split: train=8000  val=1000  test=1000
+10:56:37 | INFO  | Wrote split index lists to /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v3/train/splits.json
+10:56:37 | INFO  | Model: PositionGuidedMaskedSeparationUNet3D(slots=5 + 1 diffuse, base=16, sigma=1.5, bias_scale=30.0, entropy_weight=0.10)
+10:56:37 | INFO  | Loss: pos_guided  | 1401350 trainable params
+10:56:38 | INFO  | === epoch 1/1000  lr=1.00e-03 ===
+10:57:05 | INFO  |   epoch 1  step   20/200  loss 1.1307e-01  (30.1 samples/s)
+10:57:26 | INFO  |   epoch 1  step   40/200  loss 9.2435e-02  (33.1 samples/s)
+10:57:48 | INFO  |   epoch 1  step   60/200  loss 7.7498e-02  (34.4 samples/s)
+10:58:10 | INFO  |   epoch 1  step   80/200  loss 5.4377e-02  (34.8 samples/s)
+10:58:32 | INFO  |   epoch 1  step  100/200  loss 3.8868e-02  (35.0 samples/s)
+10:58:54 | INFO  |   epoch 1  step  120/200  loss 2.6422e-02  (35.2 samples/s)
+10:59:16 | INFO  |   epoch 1  step  140/200  loss 1.8984e-02  (35.4 samples/s)
+10:59:38 | INFO  |   epoch 1  step  160/200  loss 1.3247e-02  (35.6 samples/s)
+11:00:00 | INFO  |   epoch 1  step  180/200  loss 1.1580e-02  (35.7 samples/s)
+11:00:21 | INFO  |   epoch 1  step  200/200  loss 9.3660e-03  (35.9 samples/s)
+11:00:49 | INFO  | epoch 1  train 5.1696e-02  val 9.1644e-03  per_slot_mse 1.7113e-05  flux_rel_err 1.726  [best]  (251.3s)
+11:00:49 | INFO  | === epoch 2/1000  lr=1.00e-03 ===
+11:01:15 | INFO  |   epoch 2  step   20/200  loss 7.7462e-03  (31.1 samples/s)
+11:01:37 | INFO  |   epoch 2  step   40/200  loss 6.1470e-03  (33.6 samples/s)
+11:02:00 | INFO  |   epoch 2  step   60/200  loss 6.4459e-03  (34.2 samples/s)
+11:02:24 | INFO  |   epoch 2  step   80/200  loss 5.2908e-03  (33.9 samples/s)
+11:02:48 | INFO  |   epoch 2  step  100/200  loss 4.4687e-03  (33.7 samples/s)
+11:03:13 | INFO  |   epoch 2  step  120/200  loss 4.7618e-03  (33.5 samples/s)
+11:03:37 | INFO  |   epoch 2  step  140/200  loss 3.8738e-03  (33.4 samples/s)
+11:03:59 | INFO  |   epoch 2  step  160/200  loss 3.5009e-03  (33.7 samples/s)
+11:04:21 | INFO  |   epoch 2  step  180/200  loss 3.5670e-03  (34.0 samples/s)
+11:04:43 | INFO  |   epoch 2  step  200/200  loss 3.1030e-03  (34.3 samples/s)
+11:05:13 | INFO  | epoch 2  train 5.1400e-03  val 3.2272e-03  per_slot_mse 1.7493e-05  flux_rel_err 1.783  [best]  (263.4s)
+11:05:13 | INFO  | === epoch 3/1000  lr=1.00e-03 ===
+11:05:38 | INFO  |   epoch 3  step   20/200  loss 3.0472e-03  (31.2 samples/s)
+11:06:00 | INFO  |   epoch 3  step   40/200  loss 2.7324e-03  (33.9 samples/s)
+11:06:22 | INFO  |   epoch 3  step   60/200  loss 2.9085e-03  (34.6 samples/s)
+11:06:44 | INFO  |   epoch 3  step   80/200  loss 2.3100e-03  (35.1 samples/s)
+11:07:07 | INFO  |   epoch 3  step  100/200  loss 2.5919e-03  (35.1 samples/s)
+11:07:29 | INFO  |   epoch 3  step  120/200  loss 2.5846e-03  (35.3 samples/s)
+11:07:51 | INFO  |   epoch 3  step  140/200  loss 2.4338e-03  (35.5 samples/s)
+11:08:12 | INFO  |   epoch 3  step  160/200  loss 2.4088e-03  (35.6 samples/s)
+11:08:34 | INFO  |   epoch 3  step  180/200  loss 2.4471e-03  (35.7 samples/s)
+11:08:56 | INFO  |   epoch 3  step  200/200  loss 2.1612e-03  (35.9 samples/s)
+11:09:23 | INFO  | epoch 3  train 2.5692e-03  val 2.1545e-03  per_slot_mse 1.6524e-05  flux_rel_err 1.786  [best]  (250.1s)
+11:09:23 | INFO  | === epoch 4/1000  lr=1.00e-03 ===
+11:09:48 | INFO  |   epoch 4  step   20/200  loss 2.3259e-03  (31.8 samples/s)
+11:10:10 | INFO  |   epoch 4  step   40/200  loss 2.0815e-03  (34.3 samples/s)
+11:10:31 | INFO  |   epoch 4  step   60/200  loss 2.2902e-03  (35.2 samples/s)
+11:10:53 | INFO  |   epoch 4  step   80/200  loss 2.1954e-03  (35.7 samples/s)
+11:11:14 | INFO  |   epoch 4  step  100/200  loss 1.8238e-03  (35.9 samples/s)

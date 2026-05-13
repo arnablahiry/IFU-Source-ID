@@ -87,7 +87,8 @@ def _compute_loss(loss_fn, needs_cube, pred, target, valid, cube):
     return loss_fn(pred, target, valid)
 
 
-def train_one_epoch(model, loader, opt, loss_fn, needs_cube, device, log, epoch, log_every):
+def train_one_epoch(model, loader, opt, loss_fn, needs_cube, needs_centers,
+                    is_seg_mask, is_instance, device, log, epoch, log_every):
     import torch
     model.train()
     total, n = 0.0, 0
@@ -96,8 +97,23 @@ def train_one_epoch(model, loader, opt, loss_fn, needs_cube, device, log, epoch,
         cube = batch["cube"].to(device, non_blocking=True)
         target = batch["galaxy_cubes"].to(device, non_blocking=True)
         valid = batch["galaxy_valid"].to(device, non_blocking=True)
-        pred = model(cube)
-        loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
+        centers = batch["centers_cyx"].to(device, non_blocking=True)
+        if is_instance:
+            logits = model(cube)
+            loss = loss_fn(logits, target, valid)
+        elif is_seg_mask:
+            out = model(cube, centers, valid)
+            if isinstance(out, tuple):  # joint model returns (masks, heatmap)
+                gt_hmap = batch["heatmap"].to(device, non_blocking=True)
+                loss = loss_fn((out[0], out[1], gt_hmap), target, valid)
+            else:
+                loss = loss_fn(out, target, valid)
+        elif needs_centers:
+            pred = model(cube, valid, centers)
+            loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
+        else:
+            pred = model(cube, valid)
+            loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
         opt.zero_grad(); loss.backward(); opt.step()
         total += float(loss.detach().cpu()) * cube.size(0)
         n += cube.size(0)
@@ -109,7 +125,8 @@ def train_one_epoch(model, loader, opt, loss_fn, needs_cube, device, log, epoch,
     return total / max(n, 1)
 
 
-def validate(model, loader, loss_fn, needs_cube, device):
+def validate(model, loader, loss_fn, needs_cube, needs_centers,
+             is_seg_mask, is_instance, device):
     import torch
     model.eval()
     metrics = {"val_loss": 0.0, "per_slot_mse": 0.0, "flux_relative_error": 0.0, "n": 0}
@@ -118,9 +135,37 @@ def validate(model, loader, loss_fn, needs_cube, device):
             cube = batch["cube"].to(device, non_blocking=True)
             target = batch["galaxy_cubes"].to(device, non_blocking=True)
             valid = batch["galaxy_valid"].to(device, non_blocking=True)
-            pred = model(cube)
-            loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
-            m = _flux_metrics(pred, target, valid)
+            centers = batch["centers_cyx"].to(device, non_blocking=True)
+            if is_instance:
+                logits = model(cube)
+                loss = loss_fn(logits, target, valid)
+                # Convert argmax label map to flux predictions for metrics.
+                label_map = logits.argmax(dim=1, keepdim=True)  # (B, 1, C, Y, X)
+                M = target.shape[1]
+                pred = torch.stack([
+                    (label_map[:, 0] == k).float() * cube[:, 0]
+                    for k in range(M)
+                ], dim=1)  # (B, M, C, Y, X)
+                m = _flux_metrics(pred, target, valid)
+            elif is_seg_mask:
+                out = model(cube, centers, valid)
+                if isinstance(out, tuple):
+                    gt_hmap = batch["heatmap"].to(device, non_blocking=True)
+                    loss = loss_fn((out[0], out[1], gt_hmap), target, valid)
+                    masks = out[0]
+                else:
+                    masks = out
+                    loss = loss_fn(masks, target, valid)
+                pred = masks * cube
+                m = _flux_metrics(pred, target, valid)
+            elif needs_centers:
+                pred = model(cube, valid, centers)
+                loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
+                m = _flux_metrics(pred, target, valid)
+            else:
+                pred = model(cube, valid)
+                loss = _compute_loss(loss_fn, needs_cube, pred, target, valid, cube)
+                m = _flux_metrics(pred, target, valid)
             bs = cube.size(0)
             metrics["val_loss"] += float(loss.detach().cpu()) * bs
             metrics["per_slot_mse"] += m["per_slot_mse"] * bs
@@ -133,6 +178,8 @@ def validate(model, loader, loss_fn, needs_cube, device):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--data", required=True, help="Directory with cube_*.h5")
+    ap.add_argument("--n-cubes", type=int, default=None,
+                    help="Use only the first N cubes (numeric order). Default: all.")
     ap.add_argument("--out", default="runs/sep", help="Output directory (checkpoints + logs)")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch-size", type=int, default=2)
@@ -140,16 +187,37 @@ def main():
     ap.add_argument("--base", type=int, default=16, help="U-Net base channels")
     ap.add_argument(
         "--model",
-        choices=["baseline", "hungarian", "hungarian_diffuse", "mask"],
+        choices=["baseline", "hungarian", "hungarian_diffuse", "mask", "two_stage", "pos_guided", "seg_mask", "joint", "instance"],
         default="baseline",
         help=(
             "baseline: fixed-slot masked MSE (sep_v1).  "
             "hungarian: permutation-invariant matching + per-slot rebalancing.  "
             "hungarian_diffuse: hungarian + extra diffuse output slot + reconstruction term.  "
             "mask: softmax-over-slots mask decoder (slots compete per voxel) + "
-            "Hungarian + diffuse slot. Σ pred ≡ input by construction."
+            "Hungarian + diffuse slot. Σ pred ≡ input by construction.  "
+            "pos_guided: mask model + per-slot Gaussian logit bias from GT centers."
         ),
     )
+    ap.add_argument("--cross-weight", type=float, default=0.0,
+                    help="Cross-contamination penalty weight (mask model).")
+    ap.add_argument("--fg-weight", type=float, default=1.0,
+                    help="Foreground BCE loss weight (two_stage model).")
+    ap.add_argument("--fg-threshold", type=float, default=0.05,
+                    help="Flux fraction threshold for GT foreground mask (two_stage model).")
+    ap.add_argument("--center-sigma", type=float, default=1.5,
+                    help="Gaussian sigma (voxels) for positional slot bias (pos_guided model).")
+    ap.add_argument("--bias-scale", type=float, default=30.0,
+                    help="Logit scale for positional Gaussian bias (pos_guided model).")
+    ap.add_argument("--center-noise", type=float, default=2.0,
+                    help="Std dev of Gaussian noise added to GT centers during training (joint model). "
+                         "Bridges gap between GT and predicted centers at inference.")
+    ap.add_argument("--det-weight", type=float, default=1.0,
+                    help="Weight for detection heatmap loss (joint model).")
+    ap.add_argument("--entropy-weight", type=float, default=0.0,
+                    help="Per-voxel softmax entropy penalty weight (mask/pos_guided models). "
+                         "Encourages hard slot assignment — reduces hallucination.")
+    ap.add_argument("--patience", type=int, default=100,
+                    help="Early stopping patience (epochs without val improvement). 0 = disabled.")
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--val-fraction", type=float, default=0.1)
     ap.add_argument("--test-fraction", type=float, default=0.1,
@@ -173,9 +241,19 @@ def main():
         CubeDataset,
         SeparationUNet3D,
         MaskedSeparationUNet3D,
+        PositionGuidedMaskedSeparationUNet3D,
+        TwoStageUNet3D,
         masked_separation_loss,
         hungarian_separation_loss,
         hungarian_separation_loss_with_diffuse,
+        two_stage_separation_loss,
+        mask_entropy_loss,
+        SegMaskUNet3D,
+        seg_mask_loss,
+        JointDetSegUNet3D,
+        joint_det_seg_loss,
+        InstanceSegUNet3D,
+        instance_seg_loss,
     )
 
     torch.manual_seed(args.seed)
@@ -190,7 +268,7 @@ def main():
     log.info("Device: %s", device)
 
     log.info("Scanning dataset at %s", args.data)
-    ds = CubeDataset(args.data)
+    ds = CubeDataset(args.data, max_cubes=args.n_cubes)
     log.info("Loaded %d cubes.  max_n_gals inferred = %d", len(ds), ds.max_n_gals)
 
     n_test = max(1, int(args.test_fraction * len(ds)))
@@ -225,15 +303,81 @@ def main():
         num_workers=args.num_workers, pin_memory=(device == "cuda"),
     )
 
-    if args.model == "mask":
-        out_slots = ds.max_n_gals + 1   # +1 diffuse slot is built into the mask decoder
-        # Mask decoder enforces Σ pred = input, so no recon term is needed.
-        loss_fn = lambda p, t, v, c: hungarian_separation_loss_with_diffuse(
-            p, t, v, c, recon_weight=0.0,
+    needs_centers = False
+    is_seg_mask = False
+    is_instance = False
+
+    def _make_mask_loss_fn(m, cw, ew):
+        """Wrap separation loss + optional entropy penalty for mask-type models."""
+        def _loss(p, t, v, c):
+            L = hungarian_separation_loss_with_diffuse(p, t, v, c, recon_weight=0.0, cross_weight=cw)
+            if ew > 0:
+                L = L + ew * mask_entropy_loss(m)
+            return L
+        return _loss
+
+    if args.model == "instance":
+        is_instance = True
+        needs_cube = False
+        _ft = args.fg_threshold
+        model = InstanceSegUNet3D(max_n_gals=ds.max_n_gals, base=args.base).to(device)
+        loss_fn = lambda logits, t, v: instance_seg_loss(logits, t, v, fg_threshold=_ft)
+        log.info("Model: InstanceSegUNet3D(classes=%d galaxies + 1 bg, base=%d, fg_threshold=%.2f)",
+                 ds.max_n_gals, args.base, args.fg_threshold)
+    elif args.model == "seg_mask":
+        is_seg_mask = True
+        needs_centers = True
+        needs_cube = False
+        _ft = args.fg_threshold
+        model = SegMaskUNet3D(
+            max_n_gals=ds.max_n_gals, base=args.base,
+            center_sigma=args.center_sigma,
+        ).to(device)
+        loss_fn = lambda masks, t, v: seg_mask_loss(masks, t, v, fg_threshold=_ft)
+        log.info("Model: SegMaskUNet3D(slots=%d, base=%d, sigma=%.1f, fg_threshold=%.2f)",
+                 ds.max_n_gals, args.base, args.center_sigma, args.fg_threshold)
+    elif args.model == "joint":
+        is_seg_mask = True   # reuse the seg_mask training path
+        needs_centers = True
+        needs_cube = False
+        _ft, _dw = args.fg_threshold, args.det_weight
+        model = JointDetSegUNet3D(
+            max_n_gals=ds.max_n_gals, base=args.base,
+            center_sigma=args.center_sigma, center_noise=args.center_noise,
+        ).to(device)
+        loss_fn = lambda masks_hmap, t, v: joint_det_seg_loss(
+            masks_hmap[0], masks_hmap[1], t, v, masks_hmap[2],
+            fg_threshold=_ft, det_weight=_dw,
         )
+        log.info("Model: JointDetSegUNet3D(slots=%d, base=%d, sigma=%.1f, "
+                 "center_noise=%.1f, det_weight=%.1f)",
+                 ds.max_n_gals, args.base, args.center_sigma,
+                 args.center_noise, args.det_weight)
+    elif args.model == "mask":
         needs_cube = True
         model = MaskedSeparationUNet3D(max_n_gals=ds.max_n_gals, base=args.base).to(device)
-        log.info("Model: MaskedSeparationUNet3D(galaxy_slots=%d + 1 diffuse, base=%d)",
+        loss_fn = _make_mask_loss_fn(model, args.cross_weight, args.entropy_weight)
+        log.info("Model: MaskedSeparationUNet3D(galaxy_slots=%d + 1 diffuse, base=%d, "
+                 "entropy_weight=%.2f)", ds.max_n_gals, args.base, args.entropy_weight)
+    elif args.model == "pos_guided":
+        needs_cube = True
+        needs_centers = True
+        model = PositionGuidedMaskedSeparationUNet3D(
+            max_n_gals=ds.max_n_gals, base=args.base,
+            center_sigma=args.center_sigma, bias_scale=args.bias_scale,
+        ).to(device)
+        loss_fn = _make_mask_loss_fn(model, args.cross_weight, args.entropy_weight)
+        log.info("Model: PositionGuidedMaskedSeparationUNet3D(slots=%d + 1 diffuse, "
+                 "base=%d, sigma=%.1f, bias_scale=%.1f, entropy_weight=%.2f)",
+                 ds.max_n_gals, args.base, args.center_sigma, args.bias_scale, args.entropy_weight)
+    elif args.model == "two_stage":
+        _fw, _ft, _cw = args.fg_weight, args.fg_threshold, args.cross_weight
+        needs_cube = True
+        model = TwoStageUNet3D(max_n_gals=ds.max_n_gals, base=args.base).to(device)
+        loss_fn = lambda p, t, v, c: two_stage_separation_loss(
+            p, t, v, c, model, fg_threshold=_ft, fg_weight=_fw, cross_weight=_cw,
+        )
+        log.info("Model: TwoStageUNet3D(galaxy_slots=%d + 1 diffuse, base=%d)",
                  ds.max_n_gals, args.base)
     elif args.model == "hungarian_diffuse":
         out_slots = ds.max_n_gals + 1
@@ -261,14 +405,16 @@ def main():
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
 
     best_val = math.inf
+    epochs_no_improve = 0
     metrics_history = []
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
         log.info("=== epoch %d/%d  lr=%.2e ===", epoch, args.epochs, opt.param_groups[0]["lr"])
-        tl = train_one_epoch(model, train_loader, opt, loss_fn, needs_cube, device,
-                             log, epoch, args.log_every)
-        vm = validate(model, val_loader, loss_fn, needs_cube, device)
+        tl = train_one_epoch(model, train_loader, opt, loss_fn, needs_cube, needs_centers,
+                             is_seg_mask, is_instance, device, log, epoch, args.log_every)
+        vm = validate(model, val_loader, loss_fn, needs_cube, needs_centers,
+                      is_seg_mask, is_instance, device)
         sched.step()
         dt = time.time() - t0
 
@@ -287,16 +433,23 @@ def main():
         improved = vm["val_loss"] < best_val
         if improved:
             best_val = vm["val_loss"]
+            epochs_no_improve = 0
             torch.save(model.state_dict(), run_dir / "best.pt")
+        else:
+            epochs_no_improve += 1
         torch.save(model.state_dict(), run_dir / "last.pt")
 
         log.info(
             "epoch %d  train %.4e  val %.4e  per_slot_mse %.4e  flux_rel_err %.3f  %s  (%.1fs)",
             epoch, tl, vm["val_loss"], vm["per_slot_mse"], vm["flux_relative_error"],
-            "[best]" if improved else "      ", dt,
+            "[best]" if improved else f"[no_improve={epochs_no_improve}]", dt,
         )
 
-    log.info("Training complete. Best val loss: %.4e", best_val)
+        if args.patience > 0 and epochs_no_improve >= args.patience:
+            log.info("Early stopping: no improvement for %d epochs.", args.patience)
+            break
+
+    log.info("Training complete. Best val loss: %.4e  (stopped at epoch %d)", best_val, epoch)
     log.info("Checkpoints: %s", [p.name for p in run_dir.glob("*.pt")])
 
 
