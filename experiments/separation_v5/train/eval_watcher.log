@@ -1,0 +1,34 @@
+00:11:01 | INFO  | Train config: {
+  "data": "data/all_cubes",
+  "n_cubes": 10000,
+  "out": "experiments/separation_v5/train",
+  "epochs": 1000,
+  "batch_size": 16,
+  "lr": 0.001,
+  "base": 16,
+  "model": "joint",
+  "cross_weight": 0.0,
+  "fg_weight": 1.0,
+  "fg_threshold": 0.05,
+  "center_sigma": 1.5,
+  "bias_scale": 30.0,
+  "center_noise": 2.0,
+  "det_weight": 1.0,
+  "entropy_weight": 0.0,
+  "patience": 100,
+  "num_workers": 4,
+  "val_fraction": 0.1,
+  "test_fraction": 0.1,
+  "device": "cuda:2",
+  "log_every": 20,
+  "seed": 0
+}
+00:11:03 | INFO  | Device: cuda:2
+00:11:03 | INFO  | Loading dataset from data/all_cubes
+00:11:08 | INFO  | Dataset size = 20000  max_n_gals = 5
+00:11:08 | INFO  | Using test split from splits.json (1000 cubes)
+00:11:08 | INFO  | Model kind: joint  out_slots=5  permutation_invariant=False
+00:11:09 | ERROR | Failed to load /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v5/train/best.pt — likely a max_n_gals/base mismatch.
+Error(s) in loading state_dict for SeparationUNet3D:
+	Missing key(s) in state_dict: "up3.weight", "up3.bias", "dec3.0.weight", "dec3.1.weight", "dec3.1.bias", "dec3.3.weight", "dec3.4.weight", "dec3.4.bias", "up2.weight", "up2.bias", "dec2.0.weight", "dec2.1.weight", "dec2.1.bias", "dec2.3.weight", "dec2.4.weight", "dec2.4.bias", "up1.weight", "up1.bias", "dec1.0.weight", "dec1.1.weight", "dec1.1.bias", "dec1.3.weight", "dec1.4.weight", "dec1.4.bias", "head.weight", "head.bias". 
+	Unexpected key(s) in state_dict: "det_up3.weight", "det_up3.bias", "det_dec3.0.weight", "det_dec3.1.weight", "det_dec3.1.bias", "det_dec3.3.weight", "det_dec3.4.weight", "det_dec3.4.bias", "det_up2.weight", "det_up2.bias", "det_dec2.0.weight", "det_dec2.1.weight", "det_dec2.1.bias", "det_dec2.3.weight", "det_dec2.4.weight", "det_dec2.4.bias", "det_up1.weight", "det_up1.bias", "det_dec1.0.weight", "det_dec1.1.weight", "det_dec1.1.bias", "det_dec1.3.weight", "det_dec1.4.weight", "det_dec1.4.bias", "det_head.weight", "det_head.bias", "seg_up3.weight", "seg_up3.bias", "seg_dec3.0.weight", "seg_dec3.1.weight", "seg_dec3.1.bias", "seg_dec3.3.weight", "seg_dec3.4.weight", "seg_dec3.4.bias", "seg_up2.weight", "seg_up2.bias", "seg_dec2.0.weight", "seg_dec2.1.weight", "seg_dec2.1.bias", "seg_dec2.3.weight", "seg_dec2.4.weight", "seg_dec2.4.bias", "seg_up1.weight", "seg_up1.bias", "seg_dec1.0.weight", "seg_dec1.1.weight", "seg_dec1.1.bias", "seg_dec1.3.weight", "seg_dec1.4.weight", "seg_dec1.4.bias", "seg_head.weight", "seg_head.bias". 

@@ -86,7 +86,7 @@ def main():
     from torch.utils.data import random_split
     from galcubecraft_sourceid import (
         CubeDataset, SeparationUNet3D, MaskedSeparationUNet3D,
-        PositionGuidedMaskedSeparationUNet3D, TwoStageUNet3D,
+        PositionGuidedMaskedSeparationUNet3D, TwoStageUNet3D, JointDetSegUNet3D,
     )
 
     if args.device:
@@ -140,6 +140,11 @@ def main():
         ).to(device)
     elif model_kind == "two_stage":
         model = TwoStageUNet3D(max_n_gals=ds.max_n_gals, base=base).to(device)
+    elif model_kind == "joint":
+        model = JointDetSegUNet3D(
+            max_n_gals=ds.max_n_gals, base=base,
+            center_sigma=float(train_cfg.get("center_sigma", 1.5)),
+        ).to(device)
     else:
         model = SeparationUNet3D(max_n_gals=out_slots, base=base).to(device)
     ckpt_path = run_dir / args.checkpoint
@@ -169,6 +174,10 @@ def main():
                 pred_full = model(cube, valid, centers_t)
             elif model_kind in ("mask", "two_stage"):
                 pred_full = model(cube, valid)
+            elif model_kind == "joint":
+                centers_t = item["centers_cyx"].unsqueeze(0).to(device)
+                out = model(cube, centers_t)
+                pred_full = out[0]                                        # masks only
             else:
                 pred_full = model(cube)                                   # (1, M[+1], C, Y, X)
             pred_diffuse = pred_full[:, ds.max_n_gals:ds.max_n_gals+1] if has_diffuse_slot else None

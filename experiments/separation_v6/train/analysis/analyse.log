@@ -1,6 +1,0 @@
-11:30:04 | INFO  | Reading training metrics from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v6/train/metrics.jsonl
-11:30:04 | INFO  |   0 epochs
-11:30:04 | INFO  | Reading evaluation results from /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v6/train/eval
-11:30:04 | INFO  |   0 eval rows
-11:30:04 | INFO  |   wrote 0 sample montages
-11:30:04 | INFO  | Wrote /mnt/home/alahiry/repos/IFU-Source-ID/experiments/separation_v6/train/analysis/report.md

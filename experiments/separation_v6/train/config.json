@@ -19,7 +19,7 @@
   "num_workers": 4,
   "val_fraction": 0.1,
   "test_fraction": 0.1,
-  "device": "cuda:0",
+  "device": "cuda:2",
   "log_every": 20,
   "seed": 0
 }
