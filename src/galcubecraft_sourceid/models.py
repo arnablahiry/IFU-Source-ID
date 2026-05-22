@@ -1032,3 +1032,81 @@ def seg_mask_loss(
     )
     denom = w.sum() * masks.shape[2] * masks.shape[3] * masks.shape[4] + 1e-8
     return (loss * w).sum() / denom
+
+
+# ---------------------------------------------------------------------------
+# v7 — BinarySegUNet3D: M independent binary masks, one loss per galaxy
+# ---------------------------------------------------------------------------
+
+class BinarySegUNet3D(UNet3D):
+    """Cube → M independent sigmoid masks, one per galaxy slot.
+
+    No flux conservation, no position priors, no centers at inference.
+    Galaxies are ordered by descending total flux so slot assignment is
+    consistent across cubes (slot 0 = brightest, slot M-1 = faintest).
+
+    Inference:
+        masks = model(cube)                         # (1, M, C, Y, X) in [0,1]
+        pred_k = masks[:, k] * cube                 # flux for galaxy k
+    """
+
+    def __init__(self, max_n_gals: int, base: int = 16):
+        super().__init__(in_channels=1, out_channels=max_n_gals, base=base)
+        self.max_n_gals = max_n_gals
+
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        orig = x.shape[2:]
+        pad_amt = [(8 - d % 8) % 8 for d in orig]
+        pad_tuple: list[int] = []
+        for p in reversed(pad_amt):
+            pad_tuple.extend([0, p])
+        x_pad = F.pad(x, pad_tuple)
+        e1 = self.enc1(x_pad)
+        e2 = self.enc2(self.pool(e1))
+        e3 = self.enc3(self.pool(e2))
+        b  = self.bottleneck(self.pool(e3))
+        d3 = self.dec3(torch.cat([self.up3(b),  e3], dim=1))
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
+        out = self.head(d1)
+        slices = [slice(None), slice(None)] + [slice(0, s) for s in orig]
+        return torch.sigmoid(out[tuple(slices)])   # (B, M, C, Y, X) in [0,1]
+
+
+def binary_seg_loss(
+    masks: torch.Tensor,          # (B, M, C, Y, X) predicted sigmoid masks
+    galaxy_cubes: torch.Tensor,   # (B, M, C, Y, X) GT per-galaxy flux
+    valid: torch.Tensor,          # (B, M) 1.0 for real galaxies
+    fg_threshold: float = 0.05,
+    pos_weight: float = 10.0,
+) -> torch.Tensor:
+    """Per-galaxy binary cross-entropy — separate loss per satellite.
+
+    For each valid galaxy slot k:
+        GT_k[v] = 1  if galaxy_cubes[k,v] >= fg_threshold * peak(galaxy_cubes[k])
+        loss_k   = BCE(masks[k], GT_k, pos_weight)
+
+    Galaxies are assumed pre-sorted by descending flux before this call so
+    slot ordering is consistent across cubes.  Padding slots (valid=0) are
+    excluded from the loss entirely.
+    """
+    # Sort GT galaxies by descending total flux so slot 0 = brightest.
+    flux = galaxy_cubes.flatten(2).sum(dim=2)        # (B, M)
+    order = flux.argsort(dim=1, descending=True)     # (B, M)
+    galaxy_cubes = galaxy_cubes.gather(
+        1, order.unsqueeze(2).unsqueeze(3).unsqueeze(4)
+        .expand_as(galaxy_cubes))
+    valid = valid.gather(1, order)
+
+    slot_peak = galaxy_cubes.flatten(2).amax(dim=2)[:, :, None, None, None].clamp(min=1e-8)
+    gt = (galaxy_cubes >= fg_threshold * slot_peak).float()   # (B, M, C, Y, X)
+
+    w  = valid[:, :, None, None, None]               # (B, M, 1, 1, 1)
+    pw = torch.full_like(gt, pos_weight)
+    loss = F.binary_cross_entropy_with_logits(
+        masks.logit(eps=1e-6), gt,
+        pos_weight=pw,
+        reduction="none",
+    )
+    denom = w.sum() * gt.shape[2] * gt.shape[3] * gt.shape[4] + 1e-8
+    return (loss * w).sum() / denom

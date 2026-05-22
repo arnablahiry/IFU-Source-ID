@@ -88,7 +88,7 @@ def _compute_loss(loss_fn, needs_cube, pred, target, valid, cube):
 
 
 def train_one_epoch(model, loader, opt, loss_fn, needs_cube, needs_centers,
-                    is_seg_mask, is_instance, device, log, epoch, log_every):
+                    is_seg_mask, is_instance, is_binseg, device, log, epoch, log_every):
     import torch
     model.train()
     total, n = 0.0, 0
@@ -98,7 +98,10 @@ def train_one_epoch(model, loader, opt, loss_fn, needs_cube, needs_centers,
         target = batch["galaxy_cubes"].to(device, non_blocking=True)
         valid = batch["galaxy_valid"].to(device, non_blocking=True)
         centers = batch["centers_cyx"].to(device, non_blocking=True)
-        if is_instance:
+        if is_binseg:
+            masks = model(cube)
+            loss = loss_fn(masks, target, valid)
+        elif is_instance:
             logits = model(cube)
             loss = loss_fn(logits, target, valid)
         elif is_seg_mask:
@@ -126,7 +129,7 @@ def train_one_epoch(model, loader, opt, loss_fn, needs_cube, needs_centers,
 
 
 def validate(model, loader, loss_fn, needs_cube, needs_centers,
-             is_seg_mask, is_instance, device):
+             is_seg_mask, is_instance, is_binseg, device):
     import torch
     model.eval()
     metrics = {"val_loss": 0.0, "per_slot_mse": 0.0, "flux_relative_error": 0.0, "n": 0}
@@ -136,7 +139,12 @@ def validate(model, loader, loss_fn, needs_cube, needs_centers,
             target = batch["galaxy_cubes"].to(device, non_blocking=True)
             valid = batch["galaxy_valid"].to(device, non_blocking=True)
             centers = batch["centers_cyx"].to(device, non_blocking=True)
-            if is_instance:
+            if is_binseg:
+                masks = model(cube)
+                loss = loss_fn(masks, target, valid)
+                pred = masks * cube   # (B, M, C, Y, X) flux predictions
+                m = _flux_metrics(pred, target, valid)
+            elif is_instance:
                 logits = model(cube)
                 loss = loss_fn(logits, target, valid)
                 # Convert argmax label map to flux predictions for metrics.
@@ -187,7 +195,7 @@ def main():
     ap.add_argument("--base", type=int, default=16, help="U-Net base channels")
     ap.add_argument(
         "--model",
-        choices=["baseline", "hungarian", "hungarian_diffuse", "mask", "two_stage", "pos_guided", "seg_mask", "joint", "instance"],
+        choices=["baseline", "hungarian", "hungarian_diffuse", "mask", "two_stage", "pos_guided", "seg_mask", "joint", "instance", "binseg"],
         default="baseline",
         help=(
             "baseline: fixed-slot masked MSE (sep_v1).  "
@@ -216,6 +224,8 @@ def main():
     ap.add_argument("--entropy-weight", type=float, default=0.0,
                     help="Per-voxel softmax entropy penalty weight (mask/pos_guided models). "
                          "Encourages hard slot assignment — reduces hallucination.")
+    ap.add_argument("--pos-weight", type=float, default=10.0,
+                    help="Positive class weight for binary BCE loss (binseg model).")
     ap.add_argument("--patience", type=int, default=100,
                     help="Early stopping patience (epochs without val improvement). 0 = disabled.")
     ap.add_argument("--num-workers", type=int, default=2)
@@ -254,6 +264,8 @@ def main():
         joint_det_seg_loss,
         InstanceSegUNet3D,
         instance_seg_loss,
+        BinarySegUNet3D,
+        binary_seg_loss,
     )
 
     torch.manual_seed(args.seed)
@@ -306,6 +318,7 @@ def main():
     needs_centers = False
     is_seg_mask = False
     is_instance = False
+    is_binseg = False
 
     def _make_mask_loss_fn(m, cw, ew):
         """Wrap separation loss + optional entropy penalty for mask-type models."""
@@ -316,7 +329,16 @@ def main():
             return L
         return _loss
 
-    if args.model == "instance":
+    if args.model == "binseg":
+        is_binseg = True
+        needs_cube = False
+        _ft = args.fg_threshold
+        _pw = args.pos_weight
+        model = BinarySegUNet3D(max_n_gals=ds.max_n_gals, base=args.base).to(device)
+        loss_fn = lambda masks, t, v: binary_seg_loss(masks, t, v, fg_threshold=_ft, pos_weight=_pw)
+        log.info("Model: BinarySegUNet3D(M=%d slots, base=%d, fg_threshold=%.2f, pos_weight=%.1f)",
+                 ds.max_n_gals, args.base, _ft, _pw)
+    elif args.model == "instance":
         is_instance = True
         needs_cube = False
         _ft = args.fg_threshold
@@ -412,9 +434,9 @@ def main():
         t0 = time.time()
         log.info("=== epoch %d/%d  lr=%.2e ===", epoch, args.epochs, opt.param_groups[0]["lr"])
         tl = train_one_epoch(model, train_loader, opt, loss_fn, needs_cube, needs_centers,
-                             is_seg_mask, is_instance, device, log, epoch, args.log_every)
+                             is_seg_mask, is_instance, is_binseg, device, log, epoch, args.log_every)
         vm = validate(model, val_loader, loss_fn, needs_cube, needs_centers,
-                      is_seg_mask, is_instance, device)
+                      is_seg_mask, is_instance, is_binseg, device)
         sched.step()
         dt = time.time() - t0
 

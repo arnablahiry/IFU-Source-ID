@@ -1,492 +1,562 @@
-"""Masked optical-flow source tracker for 3-D spectral cubes.
+"""Flow-guided source tracker for per-channel wavelet detections.
 
-Relies on `wavelet_detect.detect_cube` to produce per-channel source
-masks.  Only pixels that fall inside a detected source in *both* the
-reference and the target channel are used when computing the optical flow
-field, which makes the estimate sharper for compact sources and prevents
-the bright halo of a dominant galaxy from dominating the displacement.
+Takes the list of per-channel detections produced by
+``wavelet_detections.detect_cube_per_channel`` and runs a four-stage pipeline:
 
-Pipeline
---------
-1. Run `wavelet_detect.detect_cube` on the cube (or accept pre-computed
-   `CubeDetections`).
-2. For each pair of consecutive channels (ch_n, ch_{n+1}):
-   a. Form the union source mask in each channel.
-   b. Restrict the two slices to the intersection of both masks.
-   c. Compute TV-L1 optical flow on the masked crops (OpenCV or skimage).
-3. For each channel, propagate source centroids forward/backward through
-   the flow field → per-source trajectory (channel, row, col).
-4. Assemble per-source sub-cubes: for each channel, copy the flux inside
-   the source's footprint mask; pixels outside are set to zero.
+Stage 1 — Masked optical flow
+    TV-L1 flow is computed between every consecutive channel pair, but only
+    inside the intersection of the two channels' union footprint masks.
+    Zeroing the images outside detected sources prevents artefact-level flow
+    vectors from leaking into the tracking step.
+
+Stage 2 — Track linking with split/merge detection
+    Each active track's last centroid is propagated forward through the flow
+    field via bilinear interpolation to predict its position in the next
+    channel.  Hungarian assignment (optimal bipartite matching) then links
+    predictions to actual detections within MAX_LINK_DIST pixels.
+
+    Unmatched detections are classified by proximity to a predicted position:
+    - Within MAX_SPLIT_DIST px → flagged as a **split** of the nearest parent.
+    - Beyond MAX_SPLIT_DIST px → new independent source track.
+
+    Unmatched predictions are classified by proximity to an already-claimed
+    detection:
+    - Within MAX_LINK_DIST px of a matched detection → flagged as a **merge**
+      into that detection's track; centroid extrapolated via flow.
+    - Otherwise → centroid extrapolated via flow (gap in detection coverage).
+
+Stage 3 — Kinematic classification
+    A track is **kinematically active** if its cumulative centroid displacement
+    across channels exceeds MIN_DISPLACEMENT pixels, or if it was involved in
+    a split or merge event.
+
+Stage 4 — Source grouping
+    Tracks connected by split_from / merge_into relationships are grouped into
+    **sources** via union-find.  A source represents one physical object whose
+    emission footprint may split into several blobs across channels (due to
+    kinematics / Doppler shear) and later rejoin.
 
 Output
 ------
-  source_cubes.h5  — (N_sources, n_ch, H, W) float32, one cube per track
-  tracks.csv       — source_id, channel, y, x, flux, snr, area_px
-  flow.npz         — (n_ch-1, 2, H, W) flow fields (v, u)
-  summary.json     — aggregate stats
+``run_flow_tracker`` returns
+  ``detections`` — list[ChannelDetection], one per processed channel
+  ``flow_seq``   — list of (ch_ref, ch_tgt, flow (2,H,W), joint_mask) tuples
+  ``tracks``     — list of track dicts, each containing:
+      ``id``           — unique integer identifier
+      ``source_id``    — which source this track belongs to
+      ``trajectory``   — list of (channel, row, col) centroid tuples
+      ``masks``        — {channel: (H,W) bool footprint mask}
+      ``split_at``     — channels where this track split into a child
+      ``split_from``   — parent track id if this is a split product, else None
+      ``merge_into``   — list of (channel, track_id) merge events
+      ``displacement`` — total centroid travel in pixels
+      ``has_split``    — bool: involved in any split/merge event?
+      ``kinematic``    — bool: kinematically active?
+  ``sources``    — list of source dicts, each containing:
+      ``id``           — unique integer identifier
+      ``track_ids``    — list of track ids that belong to this source
+      ``channels``     — sorted list of channels the source spans
+      ``n_channels``   — number of channels spanned
+      ``split_events`` — channels where the source footprint split
+      ``merge_events`` — channels where sub-tracks merged back together
 
-Usage
------
-    python scripts/wavelet/flow_tracker.py \\
-        --cube data/all_cubes/cube_10001.h5 \\
-        --out /tmp/flow_tracker_test \\
-        --k-sigma 3.0 --scales 4 --min-area 4 --flow-method tvl1
+Usage (standalone)::
+
+    python flow_tracker.py \\
+        --cube  data/clean_cube.npy \\
+        --out   /tmp/tracks \\
+        --channels 70,74 \\
+        --min-match-overlap 5 --min-split-overlap 3 --min-displacement 3
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import logging
-import sys
 from pathlib import Path
 
 import numpy as np
+from scipy.ndimage import map_coordinates
+from scipy.optimize import linear_sum_assignment
+from skimage.registration import optical_flow_tvl1
 
-from wavelet_detect import (
-    CubeDetections, SourceRegion, detect_cube,
-    load_cube, active_channels,
+from wavelet_detections import (
+    ChannelDetection,
+    active_channels,
+    detect_cube_per_channel,
+    load_cube,
 )
 
-try:
-    from skimage.registration import optical_flow_tvl1
-    _HAS_TVL1 = True
-except Exception:
-    _HAS_TVL1 = False
-
-try:
-    import cv2
-    _HAS_CV2 = True
-except Exception:
-    _HAS_CV2 = False
-
 
 # ---------------------------------------------------------------------------
-# Logging
+# Stage 1 — Masked optical flow
 # ---------------------------------------------------------------------------
 
-def _setup_logging(out_dir: Path) -> logging.Logger:
-    log = logging.getLogger("flow_tracker")
-    log.setLevel(logging.INFO)
-    log.handlers.clear()
-    fmt = logging.Formatter("%(asctime)s | %(levelname)-5s | %(message)s", "%H:%M:%S")
-    fh = logging.FileHandler(out_dir / "flow_tracker.log", mode="w")
-    fh.setFormatter(fmt)
-    sh = logging.StreamHandler(sys.stderr)
-    sh.setFormatter(fmt)
-    log.addHandler(fh)
-    log.addHandler(sh)
-    return log
-
-
-# ---------------------------------------------------------------------------
-# Masked optical flow
-# ---------------------------------------------------------------------------
-
-def _to_uint8(img: np.ndarray) -> np.ndarray:
-    a = img.astype(np.float64)
-    lo, hi = np.percentile(a, [1.0, 99.0])
-    if hi <= lo:
-        hi = lo + 1.0
-    return (np.clip((a - lo) / (hi - lo), 0.0, 1.0) * 255).astype(np.uint8)
-
-
-def _masked_flow_tvl1(
-    ref: np.ndarray,
-    tgt: np.ndarray,
+def masked_flow_tvl1(
+    img_ref: np.ndarray,
+    img_tgt: np.ndarray,
     mask: np.ndarray,
-    **kwargs,
 ) -> np.ndarray:
-    """TV-L1 flow restricted to `mask` pixels.
+    """TV-L1 optical flow restricted to *mask* pixels.
 
-    Outside the mask, both images are zeroed so the TV-L1 solver sees
-    a blank field and returns near-zero displacements there.  This
-    prevents structure outside detected sources from leaking into the
-    flow estimate inside sources.
+    Both images are zeroed outside *mask* before the solver runs, so emission
+    structure outside detected source footprints never influences the flow
+    estimate inside them.
 
-    Returns (2, H, W) float32 with flow[0]=v (row), flow[1]=u (col).
+    Parameters
+    ----------
+    img_ref, img_tgt :
+        2-D float32 channel images, shape (H, W).
+    mask :
+        Boolean (H, W) — True where flow should be estimated.
+
+    Returns
+    -------
+    np.ndarray
+        Shape (2, H, W) float32.  ``flow[0]`` = v (row displacement),
+        ``flow[1]`` = u (col displacement).  Zero everywhere outside *mask*.
     """
-    if not _HAS_TVL1:
-        raise ImportError("skimage.registration.optical_flow_tvl1 not available")
-    H, W = ref.shape
-    r = (ref * mask).astype(np.float64)
-    t = (tgt * mask).astype(np.float64)
-    v, u = optical_flow_tvl1(r, t, **kwargs)
-    out = np.zeros((2, H, W), dtype=np.float32)
-    out[0] = v.astype(np.float32)
-    out[1] = u.astype(np.float32)
-    # Zero out displacements in the non-source region so downstream code
-    # never propagates centroids along artefact flow vectors.
-    out[:, ~mask] = 0.0
-    return out
-
-
-def _masked_flow_farneback(
-    ref: np.ndarray,
-    tgt: np.ndarray,
-    mask: np.ndarray,
-    **defaults,
-) -> np.ndarray:
-    if not _HAS_CV2:
-        raise ImportError("opencv-python (cv2) not installed")
-    params = dict(pyr_scale=0.5, levels=3, winsize=15,
-                  iterations=3, poly_n=5, poly_sigma=1.2, flags=0)
-    params.update(defaults)
-    H, W = ref.shape
-    a = _to_uint8(ref * mask)
-    b = _to_uint8(tgt * mask)
-    f = cv2.calcOpticalFlowFarneback(a, b, None, **params)
-    out = np.zeros((2, H, W), dtype=np.float32)
-    out[0] = f[..., 1]
-    out[1] = f[..., 0]
-    out[:, ~mask] = 0.0
-    return out
-
-
-def compute_masked_flow(
-    cube: np.ndarray,
-    dets: CubeDetections,
-    method: str = "tvl1",
-    **kwargs,
-) -> np.ndarray:
-    """Compute (n_proc_ch - 1, 2, H, W) optical flow using only source pixels.
-
-    For each consecutive pair of processed channels, the intersection of
-    their source masks is used.  Both slices are zeroed outside that
-    intersection before flow estimation.
-
-    Returns array indexed by *processed* channel pairs, not raw channel
-    indices.  The caller can map back via `dets.channel_list`.
-    """
-    n_ch, H, W = dets.cube_shape
-    n_proc = dets.n_channels()
-    flow = np.zeros((n_proc - 1, 2, H, W), dtype=np.float32)
-
-    _flow_fn = _masked_flow_tvl1 if method == "tvl1" else _masked_flow_farneback
-
-    for idx in range(n_proc - 1):
-        ch_ref = dets.channel_list[idx]
-        ch_tgt = dets.channel_list[idx + 1]
-
-        mask_ref = dets.union_mask(idx)
-        mask_tgt = dets.union_mask(idx + 1)
-        # Intersection: only pixels that are sources in both channels.
-        joint_mask = mask_ref & mask_tgt
-
-        if not joint_mask.any():
-            # No overlapping source pixels — leave flow as zero.
-            continue
-
-        flow[idx] = _flow_fn(
-            cube[ch_ref].astype(np.float32),
-            cube[ch_tgt].astype(np.float32),
-            joint_mask,
-            **kwargs,
-        )
-
+    r = (img_ref * mask).astype(np.float64)
+    t = (img_tgt * mask).astype(np.float64)
+    v, u = optical_flow_tvl1(r, t)
+    flow = np.zeros((2, *img_ref.shape), dtype=np.float32)
+    flow[0] = v
+    flow[1] = u
+    flow[:, ~mask] = 0.0
     return flow
 
 
-# ---------------------------------------------------------------------------
-# Centroid propagation
-# ---------------------------------------------------------------------------
+def compute_flow_sequence(
+    detections: list[ChannelDetection],
+) -> list[tuple[int, int, np.ndarray, np.ndarray]]:
+    """Compute masked TV-L1 flow for every consecutive detection pair.
 
-def _bilinear_sample(field: np.ndarray, y: float, x: float) -> float:
-    H, W = field.shape
-    y = np.clip(y, 0.0, H - 1.001)
-    x = np.clip(x, 0.0, W - 1.001)
-    y0 = int(np.floor(y)); x0 = int(np.floor(x))
-    fy = y - y0; fx = x - x0
-    return float(
-        (1 - fy) * (1 - fx) * field[y0,     x0]
-      + (1 - fy) * fx       * field[y0,     min(x0 + 1, W - 1)]
-      + fy       * (1 - fx) * field[min(y0 + 1, H - 1), x0]
-      + fy       * fx       * field[min(y0 + 1, H - 1), min(x0 + 1, W - 1)]
-    )
+    The joint mask is the *union* of the source footprints from both channels.
+    Using the union (rather than the intersection) is critical for split
+    detection: when a source splits into a new spatial location between
+    channels, the two blobs may not overlap at all.  With an intersection
+    mask the flow would be zero everywhere and the predicted centroid would
+    not move — causing the split-off blob to be mis-classified as a new
+    independent source.  With the union mask the TV-L1 solver sees the
+    source signal on both sides and produces flow vectors that point from
+    the pre-split footprint toward the post-split footprint, allowing
+    :func:`link_tracks` to attribute the new blob to the correct parent.
 
+    Parameters
+    ----------
+    detections :
+        Ordered list of :class:`~wavelet_detections.ChannelDetection` objects.
 
-def propagate_centroid(
-    y0: float,
-    x0: float,
-    start_idx: int,
-    flow: np.ndarray,
-    n_proc: int,
-) -> np.ndarray:
-    """Track one centroid forward and backward through `flow`.
-
-    flow : (n_proc-1, 2, H, W)  — flow[i] maps proc_ch[i] → proc_ch[i+1]
-    start_idx : index in the processed channel list where (y0, x0) lives.
-
-    Returns (n_proc, 2) trajectory in (row, col).
+    Returns
+    -------
+    list of (ch_ref, ch_tgt, flow, joint_mask) tuples.
     """
-    traj = np.zeros((n_proc, 2), dtype=np.float64)
-    traj[start_idx] = (y0, x0)
+    H, W = detections[0].image.shape
+    results = []
 
-    # Forward pass
-    for i in range(start_idx, n_proc - 1):
-        cy, cx = traj[i]
-        v = _bilinear_sample(flow[i, 0], cy, cx)
-        u = _bilinear_sample(flow[i, 1], cy, cx)
-        traj[i + 1] = (cy + v, cx + u)
+    for i in range(len(detections) - 1):
+        d_ref, d_tgt = detections[i], detections[i + 1]
 
-    # Backward pass (approximate inverse via negative flow at current pos)
-    for i in range(start_idx, 0, -1):
-        cy, cx = traj[i]
-        v = _bilinear_sample(flow[i - 1, 0], cy, cx)
-        u = _bilinear_sample(flow[i - 1, 1], cy, cx)
-        traj[i - 1] = (cy - v, cx - u)
+        union_ref = np.zeros((H, W), dtype=bool)
+        for m in d_ref.footprint_masks:
+            union_ref |= m
 
-    return traj
+        union_tgt = np.zeros((H, W), dtype=bool)
+        for m in d_tgt.footprint_masks:
+            union_tgt |= m
+
+        # Union: flow is estimated wherever either channel has source signal.
+        joint_mask = union_ref | union_tgt
+
+        if joint_mask.any():
+            flow = masked_flow_tvl1(d_ref.image, d_tgt.image, joint_mask)
+        else:
+            flow = np.zeros((2, H, W), dtype=np.float32)
+
+        results.append((d_ref.channel, d_tgt.channel, flow, joint_mask))
+
+    return results
 
 
 # ---------------------------------------------------------------------------
-# Source matching: link detections across channels
+# Catmull-Rom flow sampling helper
 # ---------------------------------------------------------------------------
 
-def _match_regions(
-    regions_a: list[SourceRegion],
-    regions_b: list[SourceRegion],
-    max_dist: float = 10.0,
-) -> list[tuple[int, int]]:
-    """Greedy nearest-neighbour matching between two sets of SourceRegions.
+def _sample_flow(field: np.ndarray, ys: np.ndarray, xs: np.ndarray) -> np.ndarray:
+    """Catmull-Rom cubic interpolation of a 2-D scalar field at (ys, xs).
 
-    Returns list of (idx_a, idx_b) pairs whose centroid distance <= max_dist.
-    Uses the Hungarian algorithm for optimal bipartite assignment.
+    Uses scipy.ndimage.map_coordinates with order=3 (cubic spline, equivalent
+    to Catmull-Rom for smooth fields).  ys and xs are 1-D float arrays.
     """
-    from scipy.optimize import linear_sum_assignment
-
-    if not regions_a or not regions_b:
-        return []
-
-    ya = np.array([r.y for r in regions_a])
-    xa = np.array([r.x for r in regions_a])
-    yb = np.array([r.y for r in regions_b])
-    xb = np.array([r.x for r in regions_b])
-
-    dy = ya[:, None] - yb[None, :]
-    dx = xa[:, None] - xb[None, :]
-    cost = np.hypot(dy, dx)
-
-    row_ind, col_ind = linear_sum_assignment(cost)
-    return [
-        (int(r), int(c))
-        for r, c in zip(row_ind, col_ind)
-        if cost[r, c] <= max_dist
-    ]
+    coords = np.stack([
+        np.clip(ys, 0, field.shape[0] - 1),
+        np.clip(xs, 0, field.shape[1] - 1),
+    ])
+    return map_coordinates(field, coords, order=3, mode='nearest')
 
 
 # ---------------------------------------------------------------------------
-# Main tracking routine
+# Ghost mask advection helper
 # ---------------------------------------------------------------------------
 
-class Track:
-    """A source track: centroid trajectory + per-channel flux masks."""
+def _advect_mask(mask: np.ndarray, flow: np.ndarray) -> np.ndarray:
+    """Advect a boolean source footprint forward through a flow field.
 
-    def __init__(self, track_id: int, n_proc: int, H: int, W: int) -> None:
-        self.track_id = track_id
-        self.trajectory: np.ndarray = np.full((n_proc, 2), np.nan)   # (n_proc, 2)
-        self.snr: np.ndarray = np.zeros(n_proc)
-        self.flux: np.ndarray = np.zeros(n_proc)
-        self.area: np.ndarray = np.zeros(n_proc, dtype=np.int32)
-        # Per-processed-channel source mask (H, W) bool.
-        self._masks: list[np.ndarray | None] = [None] * n_proc
+    Every True pixel at (y, x) in *mask* is displaced by the Catmull-Rom
+    sampled flow vector at that pixel.  Displaced pixel positions are
+    accumulated into a float32 weight map (raw hit counts, not normalised,
+    not dilated).
 
-    def set_channel(self, proc_idx: int, reg: SourceRegion) -> None:
-        self.trajectory[proc_idx] = (reg.y, reg.x)
-        self.snr[proc_idx] = reg.snr
-        self.flux[proc_idx] = reg.flux
-        self.area[proc_idx] = reg.area_px
-        self._masks[proc_idx] = reg.mask
+    Overlap between this weight map and a blob footprint mask is computed as
+        (weight_map * blob_mask).sum()
+    A non-zero overlap means the flow carries source pixels into the blob.
 
-    def mask(self, proc_idx: int) -> np.ndarray | None:
-        return self._masks[proc_idx]
+    Parameters
+    ----------
+    mask : (H, W) bool
+    flow : (2, H, W) float32 — flow[0]=row disp, flow[1]=col disp
 
-
-def build_tracks(
-    dets: CubeDetections,
-    flow: np.ndarray,
-    max_match_dist: float = 10.0,
-) -> list[Track]:
-    """Build one track per global source.
-
-    Since `detect_cube` already assigns every channel's detections to the N
-    global sources (index-matched), each source maps directly to one track.
-    The flow field is used to refine the centroid trajectory via bilinear
-    sampling for channels where the source is below threshold (flux == 0),
-    filling gaps without inventing new tracks.
-
-    Returns list of Track objects sorted by mean flux (descending).
+    Returns
+    -------
+    weight_map : (H, W) float32 — raw advection hit counts
     """
-    n_proc = dets.n_channels()
-    n_ch, H, W = dets.cube_shape
-    N = dets.n_sources()
+    H, W = mask.shape
+    ys, xs = np.where(mask)
+    weight_map = np.zeros((H, W), dtype=np.float32)
+    if ys.size == 0:
+        return weight_map
 
-    tracks = []
-    for src_idx in range(N):
-        t = Track(src_idx, n_proc, H, W)
-        for ch_idx in range(n_proc):
-            regs = dets.channel_regions[ch_idx]
-            if src_idx < len(regs):
-                t.set_channel(ch_idx, regs[src_idx])
-        tracks.append(t)
+    v = _sample_flow(flow[0], ys.astype(float), xs.astype(float))
+    u = _sample_flow(flow[1], ys.astype(float), xs.astype(float))
 
-    # Gap-fill: for channels where flux==0, propagate the last known centroid
-    # forward via optical flow so the trajectory is continuous.
-    for t in tracks:
-        # Forward pass
-        for ch_idx in range(1, n_proc):
-            if t.flux[ch_idx] == 0 and not np.isnan(t.trajectory[ch_idx - 1, 0]):
-                cy, cx = t.trajectory[ch_idx - 1]
-                flow_idx = ch_idx - 1
-                if flow_idx < flow.shape[0]:
-                    v = _bilinear_sample(flow[flow_idx, 0], cy, cx)
-                    u = _bilinear_sample(flow[flow_idx, 1], cy, cx)
-                    t.trajectory[ch_idx] = (cy + v, cx + u)
-        # Backward pass (for leading channels below threshold)
-        for ch_idx in range(n_proc - 2, -1, -1):
-            if t.flux[ch_idx] == 0 and not np.isnan(t.trajectory[ch_idx + 1, 0]):
-                cy, cx = t.trajectory[ch_idx + 1]
-                flow_idx = ch_idx
-                if flow_idx < flow.shape[0]:
-                    v = _bilinear_sample(flow[flow_idx, 0], cy, cx)
-                    u = _bilinear_sample(flow[flow_idx, 1], cy, cx)
-                    t.trajectory[ch_idx] = (cy - v, cx - u)
+    pred_ys = np.clip(np.round(ys + v).astype(int), 0, H - 1)
+    pred_xs = np.clip(np.round(xs + u).astype(int), 0, W - 1)
 
-    tracks.sort(key=lambda t: -float(np.nanmean(t.flux)))
+    # np.add.at handles duplicate destination pixels correctly (unlike +=)
+    np.add.at(weight_map, (pred_ys, pred_xs), 1.0)
+    return weight_map
+
+
+# ---------------------------------------------------------------------------
+# Stage 2 — Track linking with split/merge detection
+# ---------------------------------------------------------------------------
+
+def link_tracks(
+    detections: list[ChannelDetection],
+    flow_seq: list[tuple[int, int, np.ndarray, np.ndarray]],
+    min_match_overlap: int = 5,
+    min_split_overlap: int = 3,
+    ghost_threshold: float = 0.5,
+) -> list[dict]:
+    """Link per-channel blob detections into multi-channel tracks.
+
+    Uses stateful ghost masks and pixel-overlap matching — no Euclidean distance.
+
+    Algorithm
+    ---------
+    Each track maintains a *ghost mask*: its most recently known wavelet
+    footprint, advected channel-by-channel through the flow via Catmull-Rom
+    cubic interpolation.  Matching and split attribution both use pixel-overlap
+    between the advected ghost mask and new blob masks; Euclidean distance is
+    never used.
+
+    For each consecutive channel pair (ref → tgt):
+
+    A. Advect every active track's ghost mask through the flow → adv_maps.
+    B. Hungarian matching on negative-overlap cost matrix.  Pairs with overlap
+       ≥ min_match_overlap are matched; ghost reset to the matched detection mask.
+    C. Unmatched predictions: check for merge via overlap, then extrapolate
+       centroid via flow; ghost drifts forward (binarized at ghost_threshold).
+    D. Unmatched detections: attributed as splits of the track whose advected
+       ghost has the highest overlap ≥ min_split_overlap.  No distance fallback.
+       Blobs with zero overlap to any source start a new independent track.
+
+    Parameters
+    ----------
+    detections :
+        Per-channel detection results in channel order.
+    flow_seq :
+        Output of :func:`compute_flow_sequence`.
+    min_match_overlap :
+        Minimum pixel overlap (advected ghost ∩ blob mask) to accept a
+        continuation match.
+    min_split_overlap :
+        Minimum pixel overlap to attribute an unmatched detection as a split
+        of an existing source.
+    ghost_threshold :
+        Threshold on the advected weight map used to binarize the ghost mask
+        for gap channels.  0.5 means a pixel needs ≥1 advected hit to survive.
+
+    Returns
+    -------
+    list[dict]
+        One dict per track with keys: ``id``, ``trajectory``, ``masks``,
+        ``split_at``, ``split_from``, ``merge_into``, ``active``.
+    """
+    def _new_track(tid, ch, y, x, mask):
+        return dict(
+            id=tid, trajectory=[(ch, y, x)], masks={ch: mask},
+            split_at=[], split_from=None, merge_into=[], active=True,
+        )
+
+    tracks: list[dict] = []
+
+    # Seed one track per blob in the first channel.
+    d0 = detections[0]
+    for mask, (y, x) in zip(d0.footprint_masks, d0.peaks):
+        tracks.append(_new_track(len(tracks), d0.channel, float(y), float(x), mask))
+
+    # Stateful ghost masks: each source's current advected footprint.
+    ghost_masks: dict[int, np.ndarray] = {
+        t['id']: t['masks'][d0.channel].copy() for t in tracks
+    }
+
+    for fi, (ch_ref, ch_tgt, flow, _) in enumerate(flow_seq):
+        d_tgt  = detections[fi + 1]
+        active = [t for t in tracks if t['active']]
+
+        # A. Advect every active source's ghost mask through the flow field.
+        adv_maps: dict[int, np.ndarray] = {
+            t['id']: _advect_mask(ghost_masks[t['id']], flow)
+            for t in active
+        }
+
+        # No detections: drift all ghosts forward and extrapolate centroids.
+        if not d_tgt.peaks:
+            for t in active:
+                adv = adv_maps[t['id']]
+                new_ghost = (adv >= ghost_threshold)
+                ghost_masks[t['id']] = new_ghost if new_ghost.any() else (adv > 0)
+                cy, cx = t['trajectory'][-1][1:]
+                t['trajectory'].append((ch_tgt, cy, cx))
+            continue
+
+        # B. Overlap cost matrix → Hungarian matching (continuation).
+        n_active = len(active)
+        n_blobs  = len(d_tgt.footprint_masks)
+        cost = np.zeros((n_active, n_blobs), dtype=float)
+        for r, t in enumerate(active):
+            for c, blob_mask in enumerate(d_tgt.footprint_masks):
+                cost[r, c] = -float((adv_maps[t['id']] * blob_mask).sum())
+
+        row_ind, col_ind = linear_sum_assignment(cost)
+
+        matched_pred: set[int] = set()
+        matched_det:  set[int] = set()
+        det_to_track: dict[int, dict] = {}
+
+        for r, c in zip(row_ind, col_ind):
+            if -cost[r, c] >= min_match_overlap:
+                t = active[r]
+                t['trajectory'].append(
+                    (ch_tgt, float(d_tgt.peaks[c][0]), float(d_tgt.peaks[c][1]))
+                )
+                t['masks'][ch_tgt]   = d_tgt.footprint_masks[c]
+                ghost_masks[t['id']] = d_tgt.footprint_masks[c]
+                matched_pred.add(r)
+                matched_det.add(c)
+                det_to_track[c] = t
+
+        # C. Unmatched predictions: merge check + ghost drift + centroid extrapolation.
+        for r, t in enumerate(active):
+            if r in matched_pred:
+                continue
+            cy, cx = t['trajectory'][-1][1:]
+            ys_a = np.array([cy], dtype=float)
+            xs_a = np.array([cx], dtype=float)
+            py = float(cy + _sample_flow(flow[0], ys_a, xs_a)[0])
+            px = float(cx + _sample_flow(flow[1], ys_a, xs_a)[0])
+
+            # Merge: advected mask overlaps a detection already owned by another track.
+            for c_det, owner in det_to_track.items():
+                ov = float((adv_maps[t['id']] * d_tgt.footprint_masks[c_det]).sum())
+                if ov >= min_match_overlap:
+                    t['merge_into'].append((ch_tgt, owner['id']))
+                    break
+
+            t['trajectory'].append((ch_tgt, py, px))
+
+            # Drift ghost through flow (gap channel — no wavelet detection).
+            adv = adv_maps[t['id']]
+            new_ghost = (adv >= ghost_threshold)
+            ghost_masks[t['id']] = new_ghost if new_ghost.any() else (adv > 0)
+
+        # D. Unmatched detections: split attribution via flow overlap (NO distance fallback).
+        for c, (dy, dx) in enumerate(d_tgt.peaks):
+            if c in matched_det:
+                continue
+            blob_mask    = d_tgt.footprint_masks[c]
+            best_overlap = 0.0
+            best_parent  = None
+
+            for t in active:
+                ov = float((adv_maps[t['id']] * blob_mask).sum())
+                if ov >= min_split_overlap and ov > best_overlap:
+                    best_overlap = ov
+                    best_parent  = t
+
+            parent_id = None
+            if best_parent is not None:
+                parent_id = best_parent['id']
+                best_parent['split_at'].append(ch_tgt)
+
+            new_t = _new_track(
+                len(tracks), ch_tgt, float(dy), float(dx), blob_mask,
+            )
+            new_t['split_from'] = parent_id
+            ghost_masks[new_t['id']] = blob_mask.copy()
+            tracks.append(new_t)
+
     return tracks
 
 
-def _build_tracks_legacy(
-    dets: CubeDetections,
-    flow: np.ndarray,
-    max_match_dist: float = 10.0,
-) -> list[Track]:
-    """Legacy Hungarian-matching tracker (kept for reference).
-    Use build_tracks() instead — it relies on the global-detection alignment.
+# ---------------------------------------------------------------------------
+# Stage 3 — Kinematic classification
+# ---------------------------------------------------------------------------
+
+def classify_kinematic(
+    tracks: list[dict],
+    min_displacement: float = 3.0,
+) -> list[dict]:
+    """Add kinematic classification fields to each track dict (in-place).
+
+    A track is **kinematically active** if:
+    - Its cumulative centroid displacement across channels ≥ *min_displacement*, or
+    - It was involved in a split event (either as parent or as split-off child).
+
+    Adds keys ``displacement`` (float, px), ``has_split`` (bool),
+    and ``kinematic`` (bool) to each track dict.
     """
-    n_proc = dets.n_channels()
-    n_ch, H, W = dets.cube_shape
+    for t in tracks:
+        traj = t['trajectory']
+        # Sum of step-wise displacements — captures curved trajectories better
+        # than straight-line start-to-end distance.
+        disp = sum(
+            np.hypot(traj[i+1][1] - traj[i][1], traj[i+1][2] - traj[i][2])
+            for i in range(len(traj) - 1)
+        )
+        split = bool(t['split_at']) or t['split_from'] is not None or bool(t['merge_into'])
+        t['displacement'] = float(disp)
+        t['has_split']    = split
+        t['kinematic']    = disp >= min_displacement or split
 
-    tracks: dict[int, Track] = {}
-    next_id = 0
-    active: dict[int, int] = {}
-
-    if not dets.channel_regions[0]:
-        seed_idx = next((i for i, r in enumerate(dets.channel_regions) if r), None)
-        if seed_idx is None:
-            return []
-        first_idx = seed_idx
-    else:
-        first_idx = 0
-
-    for ridx, reg in enumerate(dets.channel_regions[first_idx]):
-        t = Track(next_id, n_proc, H, W)
-        t.set_channel(first_idx, reg)
-        tracks[next_id] = t
-        active[next_id] = ridx
-        next_id += 1
-
-    for proc_idx in range(first_idx + 1, n_proc):
-        regs = dets.channel_regions[proc_idx]
-        prev_regs = dets.channel_regions[proc_idx - 1]
-
-        # Build predicted positions for each active track by flowing
-        # the previous centroid one step forward.
-        predicted: dict[int, tuple[float, float]] = {}
-        for tid in list(active.keys()):
-            prev_idx = proc_idx - 1
-            flow_idx = prev_idx           # flow[i] maps proc_ch[i] -> proc_ch[i+1]
-            if flow_idx >= flow.shape[0]:
-                predicted[tid] = tracks[tid].trajectory[prev_idx].tolist()
-                continue
-            cy, cx = tracks[tid].trajectory[prev_idx]
-            if np.isnan(cy):
-                del active[tid]
-                continue
-            v = _bilinear_sample(flow[flow_idx, 0], cy, cx)
-            u = _bilinear_sample(flow[flow_idx, 1], cy, cx)
-            predicted[tid] = (cy + v, cx + u)
-
-        if not regs:
-            # No detections: advance trajectory via flow only (no mask update).
-            for tid, (py, px) in predicted.items():
-                tracks[tid].trajectory[proc_idx] = (py, px)
-            continue
-
-        # Match active tracks to current detections.
-        pred_tids = list(predicted.keys())
-        pred_yx = np.array([predicted[tid] for tid in pred_tids])
-        det_yx = np.array([(r.y, r.x) for r in regs])
-
-        from scipy.optimize import linear_sum_assignment
-        dy = pred_yx[:, 0:1] - det_yx[None, :, 0]
-        dx = pred_yx[:, 1:2] - det_yx[None, :, 1]
-        cost = np.hypot(dy.squeeze(1) if dy.ndim == 3 else dy,
-                        dx.squeeze(1) if dx.ndim == 3 else dx)
-        # Reshape properly
-        cost = np.hypot(pred_yx[:, 0:1] - det_yx[:, 0],
-                        pred_yx[:, 1:2] - det_yx[:, 1])  # (n_pred, n_det)
-
-        row_ind, col_ind = linear_sum_assignment(cost)
-        matched_det = set()
-        for r, c in zip(row_ind, col_ind):
-            tid = pred_tids[r]
-            if cost[r, c] <= max_match_dist:
-                tracks[tid].set_channel(proc_idx, regs[c])
-                active[tid] = c
-                matched_det.add(c)
-            else:
-                # Track lost — extrapolate position but mark no mask.
-                tracks[tid].trajectory[proc_idx] = predicted[tid]
-
-        # Unmatched predicted tracks: extrapolate via flow.
-        matched_pred = set(row_ind[cost[row_ind, col_ind] <= max_match_dist])
-        for r, tid in enumerate(pred_tids):
-            if r not in matched_pred:
-                tracks[tid].trajectory[proc_idx] = predicted[tid]
-                if tid in active:
-                    del active[tid]
-
-        # Unmatched detections in current channel → new tracks.
-        for c, reg in enumerate(regs):
-            if c not in matched_det:
-                t = Track(next_id, n_proc, H, W)
-                t.set_channel(proc_idx, reg)
-                tracks[next_id] = t
-                active[next_id] = c
-                next_id += 1
-
-    track_list = sorted(tracks.values(), key=lambda t: -np.nanmean(t.flux))
-    return track_list
+    return tracks
 
 
 # ---------------------------------------------------------------------------
-# Assemble per-source sub-cubes
+# Stage 4 — Source grouping
 # ---------------------------------------------------------------------------
 
-def assemble_source_cubes(
+def group_into_sources(tracks: list[dict]) -> list[dict]:
+    """Group related tracks into sources via union-find over split/merge edges.
+
+    Two tracks belong to the same source if they are connected by any chain of
+    ``split_from`` (child→parent) or ``merge_into`` (merging track → target)
+    relationships.  The result is one source per connected component.
+
+    Annotates each track dict in-place with a ``source_id`` key.
+
+    Parameters
+    ----------
+    tracks :
+        Output of :func:`classify_kinematic` (or :func:`link_tracks`).
+
+    Returns
+    -------
+    list[dict]
+        One dict per source, sorted by ascending ``id``, with keys:
+        ``id``, ``track_ids``, ``channels``, ``n_channels``,
+        ``split_events``, ``merge_events``.
+    """
+    from collections import defaultdict
+
+    # Path-compressed union-find.
+    parent = {t['id']: t['id'] for t in tracks}
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for t in tracks:
+        if t['split_from'] is not None:
+            union(t['id'], t['split_from'])
+        for _ch, target_id in t['merge_into']:
+            union(t['id'], target_id)
+
+    track_by_id = {t['id']: t for t in tracks}
+    groups: dict[int, list[dict]] = defaultdict(list)
+    for t in tracks:
+        groups[find(t['id'])].append(t)
+
+    sources = []
+    for sid, group_tracks in enumerate(groups.values()):
+        track_ids    = sorted(t['id'] for t in group_tracks)
+        channels     = sorted({ch for t in group_tracks for ch, *_ in t['trajectory']})
+        split_events = sorted({ch for t in group_tracks for ch in t['split_at']})
+        merge_events = sorted({ch for t in group_tracks for ch, _ in t['merge_into']})
+        src = dict(
+            id=sid,
+            track_ids=track_ids,
+            channels=channels,
+            n_channels=len(channels),
+            split_events=split_events,
+            merge_events=merge_events,
+        )
+        sources.append(src)
+        for tid in track_ids:
+            track_by_id[tid]['source_id'] = sid
+
+    return sources
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline entry point
+# ---------------------------------------------------------------------------
+
+def run_flow_tracker(
     cube: np.ndarray,
-    tracks: list[Track],
-    dets: CubeDetections,
-) -> np.ndarray:
-    """Build (N_tracks, n_ch, H, W) float32 source cubes.
+    channel_list: list[int],
+    scales: int = 6,
+    k_sigma: float = 5.0,
+    use_scale: int = 5,
+    min_area: int = 20,
+    thresh: float | None = None,
+    min_match_overlap: int = 5,
+    min_split_overlap: int = 3,
+    ghost_threshold: float = 0.5,
+    min_displacement: float = 3.0,
+) -> tuple[list[ChannelDetection], list[tuple], list[dict], list[dict]]:
+    """Detect → flow → track → classify → group sources.
 
-    For each track and each processed channel, the original cube flux is
-    copied inside the track's detection mask; undetected channels are zeros.
-    The full cube shape is used so all sources share the same coordinate frame.
+    Convenience wrapper that chains all four stages.
+
+    Returns
+    -------
+    detections : list[ChannelDetection]
+    flow_seq   : list of (ch_ref, ch_tgt, flow, joint_mask)
+    tracks     : list of classified track dicts (each annotated with source_id)
+    sources    : list of source dicts grouping tracks by physical object
     """
-    n_ch, H, W = dets.cube_shape
-    n_tracks = len(tracks)
-    out = np.zeros((n_tracks, n_ch, H, W), dtype=np.float32)
-
-    for tid, track in enumerate(tracks):
-        for proc_idx, ch in enumerate(dets.channel_list):
-            m = track.mask(proc_idx)
-            if m is not None:
-                out[tid, ch][m] = cube[ch].astype(np.float32)[m]
-
-    return out
+    detections = detect_cube_per_channel(
+        cube, channel_list=channel_list,
+        scales=scales, k_sigma=k_sigma,
+        use_scale=use_scale, min_area=min_area, thresh=thresh,
+    )
+    flow_seq = compute_flow_sequence(detections)
+    tracks   = link_tracks(detections, flow_seq,
+                           min_match_overlap=min_match_overlap,
+                           min_split_overlap=min_split_overlap,
+                           ghost_threshold=ghost_threshold)
+    classify_kinematic(tracks, min_displacement=min_displacement)
+    sources = group_into_sources(tracks)
+    return detections, flow_seq, tracks, sources
 
 
 # ---------------------------------------------------------------------------
@@ -494,113 +564,104 @@ def assemble_source_cubes(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("--cube", required=True,
-                    help="Cube file: .h5/.hdf5, .fits/.fit, .npy, or .npz")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--scales", type=int, default=5)
-    ap.add_argument("--detail-scales", type=str, default="0,1,2",
-                    help="Fine starlet scales used for detection (default: 0,1,2)")
-    ap.add_argument("--k-sigma", type=float, default=3.0)
-    ap.add_argument("--min-area", type=int, default=4)
-    ap.add_argument("--no-subtract-diffuse", action="store_true")
-    ap.add_argument("--channels", type=str, default=None,
-                    help="Comma-separated channel indices; default: auto-detect active")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
+    ap.add_argument("--cube",             required=True,
+                    help="Cube file: .h5/.hdf5, .fits/.fit, .npy, .npz")
+    ap.add_argument("--out",              required=True,
+                    help="Output directory")
+    ap.add_argument("--channels",         default=None,
+                    help="Comma-separated channel indices; default: auto active")
     ap.add_argument("--active-threshold", type=float, default=0.05)
-    ap.add_argument("--flow-method", choices=["tvl1", "farneback"], default="tvl1")
-    ap.add_argument("--max-match-dist", type=float, default=10.0)
+    ap.add_argument("--scales",           type=int,   default=6)
+    ap.add_argument("--k-sigma",          type=float, default=5.0)
+    ap.add_argument("--use-scale",        type=int,   default=5)
+    ap.add_argument("--min-area",         type=int,   default=20)
+    ap.add_argument("--thresh",           type=float, default=None)
+    ap.add_argument("--min-match-overlap", type=int,   default=5,
+                    help="Min pixel overlap (advected ghost ∩ blob) to match a continuation")
+    ap.add_argument("--min-split-overlap", type=int,  default=3,
+                    help="Min pixel overlap to attribute an unmatched blob as a split")
+    ap.add_argument("--ghost-threshold",  type=float, default=0.5,
+                    help="Threshold on advected weight map to binarize ghost mask in gap channels")
+    ap.add_argument("--min-displacement", type=float, default=3.0,
+                    help="Min centroid travel (px) to call a track kinematic")
     args = ap.parse_args()
 
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    log = _setup_logging(out_dir)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
 
-    log.info("Loading cube: %s", args.cube)
     cube = load_cube(args.cube)
-    n_ch, H, W = cube.shape
-    log.info("Cube: ch=%d H=%d W=%d  range=[%.3e, %.3e]",
-             n_ch, H, W, float(cube.min()), float(cube.max()))
+    print(f"Cube: {cube.shape}  range [{cube.min():.3e}, {cube.max():.3e}]")
 
-    detail_scales = tuple(int(s) for s in args.detail_scales.split(","))
-
-    if args.channels is not None:
+    if args.channels:
         channel_list = [int(c) for c in args.channels.split(",")]
     else:
         channel_list = active_channels(cube, threshold_frac=args.active_threshold)
-        log.info("Auto-detected %d active channels", len(channel_list))
+        print(f"Auto-selected {len(channel_list)} active channels "
+              f"(ch {channel_list[0]}–{channel_list[-1]})")
 
-    # Stage 1: wavelet detection
-    log.info("Stage 1: wavelet per-channel detection ...")
-    dets = detect_cube(
+    detections, flow_seq, tracks, sources = run_flow_tracker(
         cube, channel_list=channel_list,
-        n_scales=args.scales, k_sigma=args.k_sigma,
-        min_area=args.min_area,
-        detail_scales=detail_scales,
-        subtract_diffuse=not args.no_subtract_diffuse,
-        log=log,
+        scales=args.scales, k_sigma=args.k_sigma,
+        use_scale=args.use_scale, min_area=args.min_area, thresh=args.thresh,
+        min_match_overlap=args.min_match_overlap,
+        min_split_overlap=args.min_split_overlap,
+        ghost_threshold=args.ghost_threshold,
+        min_displacement=args.min_displacement,
     )
-    log.info("  %d total detections across %d channels",
-             dets.total_detections(), dets.n_channels())
 
-    # Stage 2: masked optical flow
-    log.info("Stage 2: masked optical flow (%s) ...", args.flow_method)
-    flow = compute_masked_flow(cube, dets, method=args.flow_method)
-    np.savez_compressed(
-        out_dir / "flow.npz",
-        flow=flow,
-        channels=np.array(dets.channel_list, dtype=np.int32),
-    )
-    log.info("  flow computed; median |v|=%.3f px",
-             float(np.median(np.abs(flow[:, 0]))))
+    n_kin = sum(1 for t in tracks if t['kinematic'])
+    print(f"\n{len(tracks)} tracks  ({n_kin} kinematic)  →  {len(sources)} sources")
+    for src in sources:
+        print(f"  source {src['id']:2d}"
+              f"  tracks={src['track_ids']}"
+              f"  channels {src['channels'][0]}–{src['channels'][-1]}"
+              f"  ({src['n_channels']} ch)"
+              f"  splits={src['split_events']}"
+              f"  merges={src['merge_events']}")
 
-    # Stage 3: track linking
-    log.info("Stage 3: linking tracks (max_match_dist=%.1f px) ...",
-             args.max_match_dist)
-    tracks = build_tracks(dets, flow, max_match_dist=args.max_match_dist)
-    log.info("  %d tracks found", len(tracks))
-
-    # Stage 4: assemble source cubes
-    log.info("Stage 4: assembling source cubes ...")
-    source_cubes = assemble_source_cubes(cube, tracks, dets)
-
-    with h5py.File(out_dir / "source_cubes.h5", "w") as f:
-        f.create_dataset("source_cubes", data=source_cubes,
-                         compression="gzip", compression_opts=4)
-        f.attrs["n_sources"] = len(tracks)
-        f.attrs["n_channels"] = n_ch
-
-    # Write tracks CSV
-    with open(out_dir / "tracks.csv", "w", newline="") as csvf:
-        writer = csv.writer(csvf)
-        writer.writerow(["source_id", "proc_ch_idx", "channel",
-                         "y", "x", "flux", "snr", "area_px"])
-        for tid, track in enumerate(tracks):
-            for pidx, ch in enumerate(dets.channel_list):
-                y, x = track.trajectory[pidx]
-                writer.writerow([
-                    tid, pidx, ch,
-                    f"{y:.3f}", f"{x:.3f}",
-                    f"{track.flux[pidx]:.4f}",
-                    f"{track.snr[pidx]:.2f}",
-                    int(track.area[pidx]),
+    # Write tracks CSV — one row per (track, channel) pair.
+    with open(out / "tracks.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["source_id", "track_id", "channel", "y", "x",
+                    "displacement", "kinematic", "has_split", "split_from"])
+        for t in tracks:
+            for ch, y, x in t['trajectory']:
+                w.writerow([
+                    t.get('source_id', ""), t['id'], ch, f"{y:.2f}", f"{x:.2f}",
+                    f"{t['displacement']:.3f}",
+                    int(t['kinematic']), int(t['has_split']),
+                    "" if t['split_from'] is None else t['split_from'],
                 ])
+
+    # Write sources CSV — one row per source.
+    with open(out / "sources.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["source_id", "track_ids", "ch_start", "ch_end",
+                    "n_channels", "split_events", "merge_events"])
+        for src in sources:
+            w.writerow([
+                src['id'],
+                ";".join(str(i) for i in src['track_ids']),
+                src['channels'][0], src['channels'][-1],
+                src['n_channels'],
+                ";".join(str(c) for c in src['split_events']),
+                ";".join(str(c) for c in src['merge_events']),
+            ])
 
     summary = {
         "cube": str(args.cube),
-        "n_channels_processed": dets.n_channels(),
-        "total_detections": dets.total_detections(),
+        "channels": channel_list,
         "n_tracks": len(tracks),
-        "params": {
-            "scales": args.scales,
-            "k_sigma": args.k_sigma,
-            "min_area": args.min_area,
-            "flow_method": args.flow_method,
-            "max_match_dist": args.max_match_dist,
-        },
+        "n_kinematic": n_kin,
+        "n_sources": len(sources),
+        "params": {k: v for k, v in vars(args).items()
+                   if k not in ("cube", "out", "channels")},
     }
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
-    log.info("Saved source_cubes.h5, tracks.csv, flow.npz, summary.json → %s", out_dir)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+    print(f"\nSaved tracks.csv, sources.csv, summary.json → {out}")
 
 
 if __name__ == "__main__":

@@ -86,7 +86,8 @@ def main():
     from torch.utils.data import random_split
     from galcubecraft_sourceid import (
         CubeDataset, SeparationUNet3D, MaskedSeparationUNet3D,
-        PositionGuidedMaskedSeparationUNet3D, TwoStageUNet3D, JointDetSegUNet3D,
+        PositionGuidedMaskedSeparationUNet3D, TwoStageUNet3D,
+        JointDetSegUNet3D, InstanceSegUNet3D, BinarySegUNet3D,
     )
 
     if args.device:
@@ -145,6 +146,10 @@ def main():
             max_n_gals=ds.max_n_gals, base=base,
             center_sigma=float(train_cfg.get("center_sigma", 1.5)),
         ).to(device)
+    elif model_kind == "instance":
+        model = InstanceSegUNet3D(max_n_gals=ds.max_n_gals, base=base).to(device)
+    elif model_kind == "binseg":
+        model = BinarySegUNet3D(max_n_gals=ds.max_n_gals, base=base).to(device)
     else:
         model = SeparationUNet3D(max_n_gals=out_slots, base=base).to(device)
     ckpt_path = run_dir / args.checkpoint
@@ -178,6 +183,18 @@ def main():
                 centers_t = item["centers_cyx"].unsqueeze(0).to(device)
                 out = model(cube, centers_t)
                 pred_full = out[0]                                        # masks only
+            elif model_kind == "instance":
+                logits = model(cube)                                      # (1, M+1, C, Y, X)
+                labels = logits.argmax(dim=1, keepdim=True)               # (1, 1, C, Y, X)
+                # Convert argmax label map to per-galaxy flux cubes.
+                pred_full = torch.zeros(1, ds.max_n_gals, *cube.shape[2:],
+                                        device=device, dtype=cube.dtype)
+                for g in range(ds.max_n_gals):
+                    mask = (labels == g).float()                          # (1, 1, C, Y, X)
+                    pred_full[:, g] = (cube * mask).squeeze(1)
+            elif model_kind == "binseg":
+                masks = model(cube)                                        # (1, M, C, Y, X) sigmoid
+                pred_full = masks * cube                                   # flux predictions
             else:
                 pred_full = model(cube)                                   # (1, M[+1], C, Y, X)
             pred_diffuse = pred_full[:, ds.max_n_gals:ds.max_n_gals+1] if has_diffuse_slot else None

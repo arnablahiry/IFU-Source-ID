@@ -41,8 +41,8 @@ from scipy.ndimage import binary_dilation
 
 # ---- make sure the wavelet scripts are importable from this directory ----
 sys.path.insert(0, str(Path(__file__).parent))
-from wavelet_detect import detect_cube, starlet_transform, load_cube, active_channels
-from flow_tracker import compute_masked_flow, build_tracks, assemble_source_cubes
+from scripts.wavelet.legacy2.wavelet_detect import detect_cube, starlet_transform, load_cube, active_channels
+from scripts.wavelet.legacy2.flow_tracker import compute_masked_flow, build_tracks, assemble_source_cubes
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ def source_colormap(n: int) -> list:
 def plot_wavelet_scales(cube: np.ndarray, channel: int, out: Path,
                         n_scales: int = 5,
                         detail_scales: tuple[int, ...] = (0, 1, 2)) -> None:
-    from wavelet_detect import starlet_coarse, mad_noise
+    from scripts.wavelet.legacy2.wavelet_detect import starlet_coarse, mad_noise
     img = cube[channel].astype(np.float64)
     coeffs = starlet_transform(img, n_scales=n_scales)
     diffuse = starlet_coarse(img, n_scales=n_scales)
@@ -111,7 +111,7 @@ def plot_wavelet_scales(cube: np.ndarray, channel: int, out: Path,
     axes[1, 2].set_title("Compact (original − diffuse)", fontsize=9)
 
     # Significance map from fine scales only
-    from wavelet_detect import _PROPAGATION
+    from scripts.wavelet.legacy2.wavelet_detect import _PROPAGATION
     k_sigma = 3.0
     sig = np.zeros_like(img)
     for j in detail_scales:

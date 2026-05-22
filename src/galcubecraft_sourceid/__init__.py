@@ -25,6 +25,8 @@ from .models import (
     instance_seg_loss,
     discriminative_loss,
     focal_mse_loss,
+    BinarySegUNet3D,
+    binary_seg_loss,
 )
 from .targets import build_heatmap
 from .inference import decode_peaks
